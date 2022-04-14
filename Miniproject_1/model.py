@@ -5,8 +5,10 @@ import torchvision.transforms.functional as TF
 from torch.utils.data import DataLoader, TensorDataset
 import time
 
+######################################
+# ARCHITECTURE classes and functions #
+######################################
 
-# ARCHITECTURE classes and functions
 class Single_Conv(nn.Module):
     """ Implements 1 convolution by level. Optional batch_norm and dropout """
     def __init__(self, in_c, out_c, batch_norm, dropout):
@@ -54,24 +56,49 @@ class Double_Conv(nn.Module):
         return img
     
 
-    
+
+######################################
+#   Model class for experimentation  #
+######################################
+
     
 class Model(nn.Module):
-    def __init__(self, model_ARGS, train_ARGS, shape_control = False):
+    def __init__(self, model_ARGS = None, train_ARGS = None, shape_control = False):
         super(Model, self).__init__()
         
-        # Dezip arguments for model architecture and training
-        in_channels, out_channels, conv_by_level, features, pooling_type, batch_norm, dropout = model_ARGS
-        optimizer, loss_func, batch_size, num_epoch = train_ARGS
-        
-        # Record class arguments
-        self.shape_control = shape_control
-        self.optimizer = optimizer # GIVE A STRING ?
-        self.loss_func = loss_func
-        self.batch_size = batch_size
-        self.num_epoch = num_epoch
-        self.depth = len(features)
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if model_ARGS == None:
+            """ IF NO ARGUMENT GIVEN --> HARDCODE MODEL ARCHITECTURE CORRESPONDING TO PRETRAINED MODEL """
+            # init arguments
+            in_channels = out_channels = 3
+            conv_by_level = 2
+            pooling_type = 'average'
+            batch_norm = True
+            dropout = 0
+            features = [16,32,64]
+            
+            # class arguments
+            self.shape_control = False
+            self.optimizer = 'SGD'
+            self.loss_func = nn.MSELoss()
+            self.batch_size = 50
+            self.num_epoch = 15
+            self.depth = len(features)
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            
+        else:
+            """ Instantiate model with arguments for experimenting """
+            # Dezip arguments for model architecture and training
+            in_channels, out_channels, conv_by_level, features, pooling_type, batch_norm, dropout = model_ARGS
+            optimizer, loss_func, batch_size, num_epoch = train_ARGS
+
+            # Record class arguments
+            self.shape_control = shape_control
+            self.optimizer = optimizer
+            self.loss_func = loss_func
+            self.batch_size = batch_size
+            self.num_epoch = num_epoch
+            self.depth = len(features)
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
         # Setting number of CONV PER FLOOR
         if conv_by_level == 1: self.conv_func = Single_Conv
@@ -153,9 +180,8 @@ class Model(nn.Module):
         epoch = checkpoint['epoch']
         print("=> Loading checkpoint from a trained model at the best epoch {}".format(epoch))
         self.load_state_dict(checkpoint['model'])
-        if self.optimizer == 'SGD':
-            optimizer = torch.optim.SGD(self.parameters(), lr=0.01, momentum = 0.9)
-            optimizer.load_state_dict(checkpoint['optimizer'])
+        self.set_optimizer()
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
 
 
     def train(self, train_input, train_target) -> None:
@@ -175,10 +201,9 @@ class Model(nn.Module):
         val_target = train_target[int(n*split_ratio):n,:,:,:]
         
         # prepare model for training
+        self.set_optimizer()
         """problem with function name"""
         #self.train(mode=True)
-        if self.optimizer == 'SGD':
-            optimizer = torch.optim.SGD(self.parameters(), lr=0.01, momentum = 0.9)
         
         # keep track of loss
         losses = []
@@ -206,15 +231,15 @@ class Model(nn.Module):
                 running_loss += loss.item()
 
                 # Backward pass and gradient update
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 loss.backward()
-                optimizer.step()
+                self.optimizer.step()
 
             epoch_loss = running_loss / len(input_batches)
             print ('Epoch [%d/%d], Train loss: %.4f' %(epoch+1, self.num_epoch, epoch_loss))
             losses.append(epoch_loss)
             
-            """# Validation
+            '''# Validation
             val_input_batches = val_input.split(self.batch_size)
             val_target_batches = val_target.split(self.batch_size)
             self.eval()
@@ -233,12 +258,12 @@ class Model(nn.Module):
                 best_loss = val_epoch_loss
                 best_epoch = epoch
                 print("=> Saving checkpoint")
-                checkpoint = {'epoch': epoch, 'model': self.state_dict(), 'optimizer': optimizer.state_dict()}
+                checkpoint = {'epoch': epoch, 'model': self.state_dict(), 'optimizer': self.optimizer.state_dict()}
                 torch.save(checkpoint, 'others/parameters.pt')
         
-        print('Training finished with best best results at epoch {} | Validation loss : {} | Training loss :'.format(best_epoch, best_loss, losses[epoch]))"""
-        
-        return losses
+        print('Training finished with best best results at epoch {} | Validation loss : {} | Training loss :'.format(best_epoch, best_loss, losses[epoch]))
+        '''
+        return losses, #val_losses
 
     
     
@@ -255,3 +280,10 @@ class Model(nn.Module):
                 for k in range(self.batch_size) :
                     test_output[b + k,:,:,:] = out[k,:,:,:]
         return test_output
+    
+    
+    def set_optimizer(self):
+        " Called when the model is used to set the optimizer, as it cannot be done before __init__() is done. "
+        if self.optimizer == 'SGD': self.optimizer = torch.optim.SGD(self.parameters(), lr=0.01, momentum = 0.9)
+        elif self.optimizer == 'Adam': self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001, betas=(0.9, 0.999))
+        elif self.optimizer == 'Adam': self.optimizer = torch.optim.Adam(self.parameters(), lr=0.01, lr_decay=0, weight_decay=0)
