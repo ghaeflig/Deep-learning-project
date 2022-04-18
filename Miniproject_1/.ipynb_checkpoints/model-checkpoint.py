@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 from torch.utils.data import DataLoader, TensorDataset
 import time
+import random
 
 ######################################
 # ARCHITECTURE classes and functions #
@@ -84,13 +85,16 @@ class Model(nn.Module):
             self.num_epoch = 15
             self.depth = len(features)
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.data_aug = False
+            
+            
             
         else:
             """ Instantiate model with arguments for experimenting """
             # Dezip arguments for model architecture and training
             in_channels, out_channels, conv_by_level, features, pooling_type, batch_norm, dropout = model_ARGS
             optimizer, loss_func, batch_size, num_epoch = train_ARGS
-
+            
             # Record class arguments
             self.shape_control = shape_control
             self.optimizer = optimizer
@@ -99,6 +103,9 @@ class Model(nn.Module):
             self.num_epoch = num_epoch
             self.depth = len(features)
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.data_aug = False
+            
+            
         
         # Setting number of CONV PER FLOOR
         if conv_by_level == 1: self.conv_func = Single_Conv
@@ -176,7 +183,7 @@ class Model(nn.Module):
         
     def load_pretrained_model(self) -> None:
 		## This loads the parameters saved in bestmodel .pth into the model
-        checkpoint = torch.load('others/parameters.pt', map_location=self.device)
+        checkpoint = torch.load('others/bestmodel.pth', map_location=self.device)
         epoch = checkpoint['epoch']
         print("=> Loading checkpoint from a trained model at the best epoch {}".format(epoch))
         self.load_state_dict(checkpoint['model'])
@@ -190,25 +197,41 @@ class Model(nn.Module):
         
         # prepare data for training
         """ ANY PREPROCESSING """
+        if self.data_aug :
+            #Data augmentation : horizontal flip
+            print('Data augmentation...')
+            id_hflip = random.sample(range(0, train_input.shape[0]), 10)
+            img_hflip = TF.hflip(train_input[id_hflip,:,:,:])
+            target_hflip = TF.hflip(train_target[id_hflip,:,:,:])
+
+            #Data augmentation : gaussian blurr 
+            id_gaus = random.sample(range(0, train_input.shape[0]), 10)
+            img_gaus = TF.gaussian_blur(train_input[id_gaus,:,:,:], kernel_size=3)
+            target_gaus = TF.gaussian_blur(train_target[id_gaus,:,:,:], kernel_size=3)
+
+            train_input = torch.cat((train_input, img_hflip, img_gaus), 0)
+            train_target = torch.cat((train_target, target_hflip, target_gaus), 0)
+        
         split_ratio = 0.9
-        n = train_input.shape[0]
         shuffled = torch.randperm(train_input.shape[0])
-        train_input = train_input[shuffled]
-        train_target = train_target[shuffled]
-        train_input = train_input[0:int(n*split_ratio),:,:,:]
-        train_target = train_target[0:int(n*split_ratio),:,:,:]
-        val_input = train_input[int(n*split_ratio):n,:,:,:]
-        val_target = train_target[int(n*split_ratio):n,:,:,:]
+        input_shuffled = train_input[shuffled]
+        target_shuffled = train_target[shuffled]
+        
+        n = train_input.shape[0]
+        train_input = input_shuffled[0:int(n*split_ratio),:,:,:]
+        train_target = target_shuffled[0:int(n*split_ratio),:,:,:]
+        val_input = input_shuffled[int(n*split_ratio):n,:,:,:]
+        val_target = target_shuffled[int(n*split_ratio):n,:,:,:]
         
         # prepare model for training
         self.set_optimizer()
         """problem with function name"""
-        #self.train(mode=True)
         
         # keep track of loss
         losses = []
         val_losses = []
         best_loss = 1000
+        
         
         for epoch in range(self.num_epoch):
             time_begin = time.time()
@@ -221,11 +244,11 @@ class Model(nn.Module):
             val_running_loss = 0
             
             # Train on each batch
+            self.train_func()
             for idx, (input_batch, target_batch) in enumerate(zip(input_batches, target_batches)):
                 # time info
                 if (idx+1)%5 == 0:
                     print(f'Batch {idx+1} : {round(time.time()-time_begin,2)} sec')
-                
                 pred = self(input_batch)
                 loss = self.loss_func(pred, target_batch)
                 running_loss += loss.item()
@@ -239,10 +262,11 @@ class Model(nn.Module):
             print ('Epoch [%d/%d], Train loss: %.4f' %(epoch+1, self.num_epoch, epoch_loss))
             losses.append(epoch_loss)
             
-            '''# Validation
+            # Validation
             val_input_batches = val_input.split(self.batch_size)
             val_target_batches = val_target.split(self.batch_size)
-            self.eval()
+            
+            self.eval_func()
             with torch.no_grad() :
                 for idx, (val_input_batch, val_target_batch) in enumerate(zip(val_input_batches, val_target_batches)):
                     val_pred = self(val_input_batch)
@@ -258,12 +282,12 @@ class Model(nn.Module):
                 best_loss = val_epoch_loss
                 best_epoch = epoch
                 print("=> Saving checkpoint")
-                checkpoint = {'epoch': epoch, 'model': self.state_dict(), 'optimizer': self.optimizer.state_dict()}
-                torch.save(checkpoint, 'others/parameters.pt')
+                checkpoint = {'epoch': epoch+1, 'model': self.state_dict(), 'optimizer': self.optimizer.state_dict()}
+                torch.save(checkpoint, 'others/bestmodel.pth')
         
-        print('Training finished with best best results at epoch {} | Validation loss : {} | Training loss :'.format(best_epoch, best_loss, losses[epoch]))
-        '''
-        return losses, #val_losses
+        print('Training finished with best best results at epoch {} | Validation loss : {:.4f} | Training loss : {:.4f}'.format(best_epoch+1, best_loss, losses[best_epoch]))
+        
+        #return losses, #val_losses
 
     
     
@@ -271,14 +295,17 @@ class Model(nn.Module):
 		#: test_input : tensor of size (N1 , C, H, W) that has to be denoised by the trained the loaded network .
 		#: returns a tensor of the size (N1 , C, H, W)
         #self.train(False)
-        self.eval()
+        self.eval_func()
         test_output = torch.empty(test_input.shape)
         test_batches = test_input.split(self.batch_size) #shuffled or not ?
+        #print(len(test_batches))
         with torch.no_grad() :
-            for b in range(0, test_input.size(0), self.batch_size) :
+            for idx, test_batch in enumerate(test_batches):
+                #print(test_batch.shape)
                 out = self(test_batch)
                 for k in range(self.batch_size) :
-                    test_output[b + k,:,:,:] = out[k,:,:,:]
+                    #print(idx*self.batch_size + k)
+                    test_output[idx*self.batch_size + k,:,:,:] = out[k,:,:,:]
         return test_output
     
     
@@ -287,3 +314,16 @@ class Model(nn.Module):
         if self.optimizer == 'SGD': self.optimizer = torch.optim.SGD(self.parameters(), lr=0.01, momentum = 0.9)
         elif self.optimizer == 'Adam': self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001, betas=(0.9, 0.999))
         elif self.optimizer == 'Adam': self.optimizer = torch.optim.Adam(self.parameters(), lr=0.01, lr_decay=0, weight_decay=0)
+     
+    
+    def train_func(self, mode=True) -> torch.Tensor: 
+        self.training = mode
+        for module in self.children():
+            module.train(mode)
+        return self
+
+    def eval_func(self) -> torch.Tensor: 
+        return self.train_func(False)
+    
+    
+        
