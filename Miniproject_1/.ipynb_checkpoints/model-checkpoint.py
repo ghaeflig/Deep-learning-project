@@ -225,7 +225,7 @@ class Model(nn.Module):
         self.set_optimizer()
         
         # keep track of loss
-        losses = []
+        train_losses = []
         val_losses = []
         best_loss = 1000
         
@@ -257,8 +257,7 @@ class Model(nn.Module):
             
             # EVALUATE TRAINING loss with mean over batch losses
             epoch_loss = running_loss / len(input_batches)
-            print ('Epoch [%d/%d], Train loss: %.4f' %(epoch+1, self.num_epoch, epoch_loss))
-            losses.append(epoch_loss)
+            train_losses.append(epoch_loss)
             
             # EVALUATE VALIDATION loss with mean over unseen batch
             val_input_batches = val_input.split(self.batch_size)
@@ -285,9 +284,9 @@ class Model(nn.Module):
                 checkpoint = {'epoch': epoch+1, 'model': self.state_dict(), 'optimizer': self.optimizer.state_dict(), 'batch_norm' : self.batch_norm, 'in_channels' : self.in_channels, 'conv_by_level' : self.conv_by_level, 'pooling_type' : self.pooling_type, 'features' : self.features, 'loss_func' : self.loss_func, 'batch_size' : self.batch_size, 'num_epoch' : self.num_epoch}
                 torch.save(checkpoint, 'bestmodel.pth')
         
-        print('Training finished with best best results at epoch {} | Validation loss : {:.4f} | Training loss : {:.4f}'.format(best_epoch+1, best_loss, losses[best_epoch]))
+        print('Training finished with best best results at epoch {} | Training loss : {:.4f} | Validation loss : {:.4f} '.format(best_epoch+1, train_losses[best_epoch], best_loss))
         
-        #return losses, #val_losses
+        return train_losses, val_losses
 
     
     
