@@ -59,7 +59,7 @@ class Double_Conv(nn.Module):
 
 
 ######################################
-#   Model class for experimentation  #
+#             Model class            #
 ######################################
 
     
@@ -69,21 +69,21 @@ class Model(nn.Module):
         
         if model_ARGS == None:
             """ IF NO ARGUMENT GIVEN --> HARDCODE MODEL ARCHITECTURE CORRESPONDING TO PRETRAINED MODEL """
-            # init arguments
-            in_channels = out_channels = 3
-            conv_by_level = 2
-            pooling_type = 'average'
-            batch_norm = True
-            dropout = 0
-            features = [16,32,64]
+            # architecture arguments
+            self.in_channels = self.out_channels = 3
+            self.conv_by_level = 2
+            self.pooling_type = 'average'
+            self.batch_norm = True
+            self.dropout = 0
+            self.features = [16,32,64]
             
-            # class arguments
+            # train arguments (wont be used unless training is launched)
             self.shape_control = False
             self.optimizer = 'SGD'
             self.loss_func = nn.MSELoss()
             self.batch_size = 50
             self.num_epoch = 15
-            self.depth = len(features)
+            self.depth = len(self.features)
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             self.data_aug = False
             
@@ -91,48 +91,45 @@ class Model(nn.Module):
             
         else:
             """ Instantiate model with arguments for experimenting """
-            # Dezip arguments for model architecture and training
-            in_channels, out_channels, conv_by_level, features, pooling_type, batch_norm, dropout = model_ARGS
-            optimizer, loss_func, batch_size, num_epoch = train_ARGS
+            # architecture arguments
+            self.in_channels, self.out_channels, self.conv_by_level, self.features, self.pooling_type, self.batch_norm, self.dropout = model_ARGS
             
-            # Record class arguments
+            # train arguments
+            self.optimizer, self.loss_func, self.batch_size, self.num_epoch = train_ARGS
             self.shape_control = shape_control
-            self.optimizer = optimizer
-            self.loss_func = loss_func
-            self.batch_size = batch_size
-            self.num_epoch = num_epoch
-            self.depth = len(features)
+            self.depth = len(self.features)
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             self.data_aug = False
             
             
         
         # Setting number of CONV PER FLOOR
-        if conv_by_level == 1: self.conv_func = Single_Conv
-        elif conv_by_level == 2: self.conv_func = Double_Conv
+        if self.conv_by_level == 1: self.conv_func = Single_Conv
+        elif self.conv_by_level == 2: self.conv_func = Double_Conv
         
         # Setting POOLING TYPE
-        if pooling_type == 'max': self.Pooling = nn.MaxPool2d((2,2))
-        elif pooling_type == 'average': self.Pooling = nn.AvgPool2d((2,2))
+        if self.pooling_type == 'max': self.Pooling = nn.MaxPool2d((2,2))
+        elif self.pooling_type == 'average': self.Pooling = nn.AvgPool2d((2,2))
             
         # Creating ENCODING layers
         self.DOWNCONV = nn.ModuleList()
-        for feature in features:
-            self.DOWNCONV.append(self.conv_func(in_channels, feature, batch_norm, dropout))
+        in_channels = self.in_channels
+        for feature in self.features:
+            self.DOWNCONV.append(self.conv_func(in_channels, feature, self.batch_norm, self.dropout))
             in_channels = feature
         
         # Creating DECODING layers
         self.UPSCALING = nn.ModuleList()
         self.UPCONV = nn.ModuleList()
-        for feature in features[::-1]:
+        for feature in self.features[::-1]:
             self.UPSCALING.append(nn.ConvTranspose2d(2*feature, feature, kernel_size = 2, stride = 2))
-            self.UPCONV.append(self.conv_func(2*feature, feature, batch_norm, dropout))
+            self.UPCONV.append(self.conv_func(2*feature, feature, self.batch_norm, self.dropout))
         
         # Bottom convolution
-        self.deepest_conv = self.conv_func(features[-1], features[-1]*2, batch_norm, dropout)
+        self.deepest_conv = self.conv_func(self.features[-1], self.features[-1]*2, self.batch_norm, self.dropout)
         
         # Final conv
-        self.final_layer = nn.Conv2d(features[0], out_channels, kernel_size = (3,3), stride = 1, padding = 1)
+        self.final_layer = nn.Conv2d(self.features[0], self.out_channels, kernel_size = (3,3), stride = 1, padding = 1)
             
             
     def forward(self, x):
@@ -183,7 +180,7 @@ class Model(nn.Module):
         
     def load_pretrained_model(self) -> None:
 		## This loads the parameters saved in bestmodel .pth into the model
-        checkpoint = torch.load('others/bestmodel.pth', map_location=self.device)
+        checkpoint = torch.load('bestmodel.pth', map_location=self.device)
         epoch = checkpoint['epoch']
         print("=> Loading checkpoint from a trained model at the best epoch {}".format(epoch))
         self.load_state_dict(checkpoint['model'])
@@ -208,7 +205,8 @@ class Model(nn.Module):
             id_gaus = random.sample(range(0, train_input.shape[0]), 10)
             img_gaus = TF.gaussian_blur(train_input[id_gaus,:,:,:], kernel_size=3)
             target_gaus = TF.gaussian_blur(train_target[id_gaus,:,:,:], kernel_size=3)
-
+            
+            #Concatenation with original data
             train_input = torch.cat((train_input, img_hflip, img_gaus), 0)
             train_target = torch.cat((train_target, target_hflip, target_gaus), 0)
         
@@ -225,7 +223,6 @@ class Model(nn.Module):
         
         # prepare model for training
         self.set_optimizer()
-        """problem with function name"""
         
         # keep track of loss
         losses = []
@@ -234,6 +231,7 @@ class Model(nn.Module):
         
         
         for epoch in range(self.num_epoch):
+            self.train_func()
             time_begin = time.time()
             
             # shuffle data to avoid overfitting and create batches
@@ -244,7 +242,6 @@ class Model(nn.Module):
             val_running_loss = 0
             
             # Train on each batch
-            self.train_func()
             for idx, (input_batch, target_batch) in enumerate(zip(input_batches, target_batches)):
                 # time info
                 if (idx+1)%5 == 0:
@@ -257,12 +254,13 @@ class Model(nn.Module):
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-
+            
+            # EVALUATE TRAINING loss with mean over batch losses
             epoch_loss = running_loss / len(input_batches)
             print ('Epoch [%d/%d], Train loss: %.4f' %(epoch+1, self.num_epoch, epoch_loss))
             losses.append(epoch_loss)
             
-            # Validation
+            # EVALUATE VALIDATION loss with mean over unseen batch
             val_input_batches = val_input.split(self.batch_size)
             val_target_batches = val_target.split(self.batch_size)
             
@@ -273,17 +271,19 @@ class Model(nn.Module):
                     val_loss = self.loss_func(val_pred, val_target_batch)
                     val_running_loss += val_loss.item()
             
+            
             val_epoch_loss = val_running_loss / len(val_input_batches)
-            print ('Epoch [%d/%d], Validation loss: %.4f' %(epoch+1, self.num_epoch, val_epoch_loss))
+            print ('Epoch [%d/%d], Train loss: %.4f' %(epoch+1, self.num_epoch, epoch_loss), 'Validation loss: %.4f' %val_epoch_loss)
             val_losses.append(val_epoch_loss)
             
-            
-            if val_epoch_loss < best_loss : # à changer avec la val loss plus tard
+            # UPDATE BEST MODEL given the validation loss
+            if val_epoch_loss < best_loss :
                 best_loss = val_epoch_loss
                 best_epoch = epoch
                 print("=> Saving checkpoint")
-                checkpoint = {'epoch': epoch+1, 'model': self.state_dict(), 'optimizer': self.optimizer.state_dict()}
-                torch.save(checkpoint, 'others/bestmodel.pth')
+                # record all aspects of model for correct best model architecture hardcoding and parameters loading later
+                checkpoint = {'epoch': epoch+1, 'model': self.state_dict(), 'optimizer': self.optimizer.state_dict(), 'batch_norm' : self.batch_norm, 'in_channels' : self.in_channels, 'conv_by_level' : self.conv_by_level, 'pooling_type' : self.pooling_type, 'features' : self.features, 'loss_func' : self.loss_func, 'batch_size' : self.batch_size, 'num_epoch' : self.num_epoch}
+                torch.save(checkpoint, 'bestmodel.pth')
         
         print('Training finished with best best results at epoch {} | Validation loss : {:.4f} | Training loss : {:.4f}'.format(best_epoch+1, best_loss, losses[best_epoch]))
         
@@ -313,16 +313,18 @@ class Model(nn.Module):
         " Called when the model is used to set the optimizer, as it cannot be done before __init__() is done. "
         if self.optimizer == 'SGD': self.optimizer = torch.optim.SGD(self.parameters(), lr=0.01, momentum = 0.9)
         elif self.optimizer == 'Adam': self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001, betas=(0.9, 0.999))
-        elif self.optimizer == 'Adam': self.optimizer = torch.optim.Adam(self.parameters(), lr=0.01, lr_decay=0, weight_decay=0)
-     
+        elif self.optimizer == 'Adagrad': self.optimizer = torch.optim.Adagrad(self.parameters(), lr=0.01, lr_decay=0, weight_decay=0)
+        # If the optimizer is not defined by a string, it is already loaded correctly
     
-    def train_func(self, mode=True) -> torch.Tensor: 
+    def train_func(self, mode=True) -> torch.Tensor:
+        """ Sets model in training mode (original source code, because of imposed train() class function overwrites it) """
         self.training = mode
         for module in self.children():
             module.train(mode)
         return self
 
-    def eval_func(self) -> torch.Tensor: 
+    def eval_func(self) -> torch.Tensor:
+        """ Sets model in evaluation mode (original source code, because of imposed train() class function overwrites it) """
         return self.train_func(False)
     
     
