@@ -229,7 +229,7 @@ class Model(nn.Module):
         val_losses = []
         best_loss = 1000
         
-        
+        """ RECORD ACCURACY ALSO ? """
         for epoch in range(self.num_epoch):
             self.train_func()
             time_begin = time.time()
