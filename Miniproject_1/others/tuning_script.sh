@@ -43,9 +43,9 @@ python ./run_session.py  8  2  average  1  0.5  [16,32,64]  SGD  MSE
 echo "STARTING RUN 9/9"
 python ./run_session.py  9  2  average  1  0  [8,16,32,64]  SGD  MSE
 
-
 echo "END OF RUN SESSION"
 
-#echo "Creating performance comparison plot..."
-# launch plot script
-#echo "Performance plot available in current folder"
+echo "Creating performance comparison plot..."
+cd others
+python ./plot_performances.py
+echo "New performance plot available in current folder."
