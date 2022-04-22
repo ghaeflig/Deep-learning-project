@@ -8,7 +8,11 @@ from model import *
 # Get data and normalize
 noisy_imgs_1, noisy_imgs_2 = torch.load('../data/train_data.pkl')
 noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1.float()/255, noisy_imgs_2.float()/255
-noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1[:15], noisy_imgs_2[:15] #TO REMOVE
+
+""" Remove following line for real training """
+""""""""""""""""""""""""""""""""""""""""""""""""
+noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1[:15], noisy_imgs_2[:15]
+""""""""""""""""""""""""""""""""""""""""""""""""
 
 # Get run, model and training arguments from terminal
 _, run_idx, conv_by_level, pooling_type, batch_norm, dropout, features, optimizer, loss_func  = sys.argv
