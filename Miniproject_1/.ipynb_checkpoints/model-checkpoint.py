@@ -78,13 +78,13 @@ class Model(nn.Module):
             self.features = [16,32,64]
             
             # train arguments (wont be used unless training is launched)
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
             self.shape_control = False
             self.optimizer = 'SGD'
-            self.loss_func = nn.MSELoss()
+            self.loss_func = nn.MSELoss().to(self.device)
             self.batch_size = 50
             self.num_epoch = 15
             self.depth = len(self.features)
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
             self.data_aug = False
             
             
@@ -215,11 +215,16 @@ class Model(nn.Module):
         input_shuffled = train_input[shuffled]
         target_shuffled = train_target[shuffled]
         
+        if not torch.cuda.is_available() :
+            print("\nThings will go much quicker if you enable a GPU")
+        else :
+            print("\nYou are running the training of the data on a GPU")
+
         n = train_input.shape[0]
-        train_input = input_shuffled[0:int(n*split_ratio),:,:,:]
-        train_target = target_shuffled[0:int(n*split_ratio),:,:,:]
-        val_input = input_shuffled[int(n*split_ratio):n,:,:,:]
-        val_target = target_shuffled[int(n*split_ratio):n,:,:,:]
+        train_input = input_shuffled[0:int(n*split_ratio),:,:,:].to(self.device)
+        train_target = target_shuffled[0:int(n*split_ratio),:,:,:].to(self.device)
+        val_input = input_shuffled[int(n*split_ratio):n,:,:,:].to(self.device)
+        val_target = target_shuffled[int(n*split_ratio):n,:,:,:].to(self.device)
         
         # prepare model for training
         self.set_optimizer()
@@ -263,13 +268,22 @@ class Model(nn.Module):
             val_input_batches = val_input.split(self.batch_size)
             val_target_batches = val_target.split(self.batch_size)
             
+            #num_correct_val = 0
+            #num_pixels_val = 0
+            
             self.eval_func()
             with torch.no_grad() :
                 for idx, (val_input_batch, val_target_batch) in enumerate(zip(val_input_batches, val_target_batches)):
                     val_pred = self(val_input_batch)
                     val_loss = self.loss_func(val_pred, val_target_batch)
                     val_running_loss += val_loss.item()
-            
+                    
+                    #num_correct_val += (val_pred.permute(0,2,3,1) == val_target_batch.permute(0,2,3,1)).sum()
+                    #print(num_correct_val)
+                    #num_pixels_val += torch.numel(val_pred)
+                    #acc_val = num_correct_val/num_pixels_val*100
+                    #print(acc_val)
+                    
             
             val_epoch_loss = val_running_loss / len(val_input_batches)
             print ('Epoch [%d/%d], Train loss: %.4f' %(epoch+1, self.num_epoch, epoch_loss), 'Validation loss: %.4f' %val_epoch_loss)

@@ -43,7 +43,8 @@ if not os.path.exists(path):
 os.chdir(path)
 
 # create model and train it. Best model state will be saved in folder
-Noise2noise = Model(model_ARGS, train_ARGS)
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+Noise2noise = Model(model_ARGS, train_ARGS).to(DEVICE)
 losses = Noise2noise.train(noisy_imgs_1, noisy_imgs_2)
 
 # record model loss
