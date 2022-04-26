@@ -203,8 +203,12 @@ class Model(nn.Module):
 
             #Data augmentation : gaussian blurr 
             id_gaus = random.sample(range(0, train_input.shape[0]), 10)
-            img_gaus = TF.gaussian_blur(train_input[id_gaus,:,:,:], kernel_size=3)
-            target_gaus = TF.gaussian_blur(train_target[id_gaus,:,:,:], kernel_size=3)
+            #img_gaus = TF.gaussian_blur(train_input[id_gaus,:,:,:], kernel_size=3)
+            #target_gaus = TF.gaussian_blur(train_target[id_gaus,:,:,:], kernel_size=3)
+            img_gaus = train_target[id_gaus,:,:,:]
+            target_gaus = TF.gaussian_blur(train_target[id_gaus,:,:,:], kernel_size=3) # GaussianBlur ? = random
+            
+            
             
             #Concatenation with original data
             train_input = torch.cat((train_input, img_hflip, img_gaus), 0)
@@ -233,6 +237,7 @@ class Model(nn.Module):
         train_losses = []
         val_losses = []
         best_loss = 1000
+        
         
         """ RECORD ACCURACY ALSO ? """
         for epoch in range(self.num_epoch):
@@ -268,9 +273,6 @@ class Model(nn.Module):
             val_input_batches = val_input.split(self.batch_size)
             val_target_batches = val_target.split(self.batch_size)
             
-            #num_correct_val = 0
-            #num_pixels_val = 0
-            
             self.eval_func()
             with torch.no_grad() :
                 for idx, (val_input_batch, val_target_batch) in enumerate(zip(val_input_batches, val_target_batches)):
@@ -278,11 +280,6 @@ class Model(nn.Module):
                     val_loss = self.loss_func(val_pred, val_target_batch)
                     val_running_loss += val_loss.item()
                     
-                    #num_correct_val += (val_pred.permute(0,2,3,1) == val_target_batch.permute(0,2,3,1)).sum()
-                    #print(num_correct_val)
-                    #num_pixels_val += torch.numel(val_pred)
-                    #acc_val = num_correct_val/num_pixels_val*100
-                    #print(acc_val)
                     
             
             val_epoch_loss = val_running_loss / len(val_input_batches)
