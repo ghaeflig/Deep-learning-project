@@ -2,9 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
-from torch.utils.data import DataLoader, TensorDataset
+from torchvision.transforms import GaussianBlur
+#from torch.utils.data import DataLoader, TensorDataset
 import time
 import random
+import sys
 
 ######################################
 # ARCHITECTURE classes and functions #
@@ -95,11 +97,11 @@ class Model(nn.Module):
             self.in_channels, self.out_channels, self.conv_by_level, self.features, self.pooling_type, self.batch_norm, self.dropout = model_ARGS
             
             # train arguments
-            self.optimizer, self.loss_func, self.batch_size, self.num_epoch = train_ARGS
+            self.optimizer, self.loss_func, self.batch_size, self.num_epoch, self.data_aug = train_ARGS
             self.shape_control = shape_control
             self.depth = len(self.features)
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            self.data_aug = False
+            #self.data_aug = False
             
             
         
@@ -197,17 +199,16 @@ class Model(nn.Module):
         if self.data_aug :
             #Data augmentation : horizontal flip
             print('Data augmentation...')
-            id_hflip = random.sample(range(0, train_input.shape[0]), 10)
+            id_hflip = random.sample(range(0, train_input.shape[0]), int(train_input.shape[0]/2))
             img_hflip = TF.hflip(train_input[id_hflip,:,:,:])
             target_hflip = TF.hflip(train_target[id_hflip,:,:,:])
 
             #Data augmentation : gaussian blurr 
-            id_gaus = random.sample(range(0, train_input.shape[0]), 10)
+            id_gaus = random.sample(range(0, train_input.shape[0]), int(train_input.shape[0]/2))
             #img_gaus = TF.gaussian_blur(train_input[id_gaus,:,:,:], kernel_size=3)
             #target_gaus = TF.gaussian_blur(train_target[id_gaus,:,:,:], kernel_size=3)
-            img_gaus = train_target[id_gaus,:,:,:]
-            target_gaus = TF.gaussian_blur(train_target[id_gaus,:,:,:], kernel_size=3) # GaussianBlur ? = random
-            
+            img_gaus = train_input[id_gaus,:,:,:]
+            target_gaus = GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))(train_target[id_gaus,:,:,:])
             
             
             #Concatenation with original data
@@ -218,6 +219,11 @@ class Model(nn.Module):
         shuffled = torch.randperm(train_input.shape[0])
         input_shuffled = train_input[shuffled]
         target_shuffled = train_target[shuffled]
+        
+        # Exchange image pairs to avoid noise depedency of the model
+        v = torch.randn(train_input.shape[0])
+        v = v > 0
+        target_shuffled[v,:,:,:], input_shuffled[v,:,:,:] = input_shuffled[v,:,:,:], target_shuffled[v,:,:,:]
         
         if not torch.cuda.is_available() :
             print("\nThings will go much quicker if you enable a GPU")
@@ -236,10 +242,8 @@ class Model(nn.Module):
         # keep track of loss
         train_losses = []
         val_losses = []
-        best_loss = 1000
+        best_loss = sys.maxsize
         
-        
-        """ RECORD ACCURACY ALSO ? """
         for epoch in range(self.num_epoch):
             self.train_func()
             time_begin = time.time()
