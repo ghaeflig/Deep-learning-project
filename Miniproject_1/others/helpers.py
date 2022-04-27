@@ -1,7 +1,9 @@
 import torch
 import os
 import matplotlib.pyplot as plt
-from model import Model
+
+sys.path.append('../')
+from model import *
 
 def psnr(denoised , ground_truth):
 	# Peak Signal to Noise Ratio : denoised and ground_truth have range [0, 1]

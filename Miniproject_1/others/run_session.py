@@ -2,7 +2,7 @@ import os
 import sys
 import torch
 
-# leave directory to enable correct imports and savings
+# leave directory to enable correct imports
 sys.path.append('../')
 from model import *
 
