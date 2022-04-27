@@ -6,9 +6,12 @@ import torch
 from model import *
 
 """ HARDCODED PARAMETERS """
-subset = 2000
+#subset = 2000
 batch_size = 50
 num_epoch = 10
+
+# set seeds for reproducibility
+torch.manual_seed(0)
 
 # Get data and normalize
 noisy_imgs_1, noisy_imgs_2 = torch.load('../data/train_data.pkl')
@@ -21,7 +24,7 @@ noisy_imgs_2 = noisy_imgs_2[shuffled]
 
 """  Possibility to take a subset for tuning  """
 """"""""""""""""""""""""""""""""""""""""""""""""
-noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1[:subset], noisy_imgs_2[:subset]
+#noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1[:subset], noisy_imgs_2[:subset]
 """"""""""""""""""""""""""""""""""""""""""""""""
 
 # Get run, model and training arguments from terminal

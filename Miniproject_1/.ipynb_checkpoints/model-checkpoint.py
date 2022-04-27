@@ -8,6 +8,10 @@ import time
 import random
 import sys
 
+# set seed for reproducibility
+random.seed(0)
+torch.manual_seed(0)
+
 ######################################
 # ARCHITECTURE classes and functions #
 ######################################
@@ -203,32 +207,31 @@ class Model(nn.Module):
             img_hflip = TF.hflip(train_input[id_hflip,:,:,:])
             target_hflip = TF.hflip(train_target[id_hflip,:,:,:])
 
-            #Data augmentation : gaussian blurr 
+            #Data augmentation : gaussian blurr one image of the pairs
             id_gaus = random.sample(range(0, train_input.shape[0]), int(train_input.shape[0]/2))
-            #img_gaus = TF.gaussian_blur(train_input[id_gaus,:,:,:], kernel_size=3)
-            #target_gaus = TF.gaussian_blur(train_target[id_gaus,:,:,:], kernel_size=3)
             img_gaus = train_input[id_gaus,:,:,:]
             target_gaus = GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))(train_target[id_gaus,:,:,:])
-            
             
             #Concatenation with original data
             train_input = torch.cat((train_input, img_hflip, img_gaus), 0)
             train_target = torch.cat((train_target, target_hflip, target_gaus), 0)
         
+        # shuffle dataset
         shuffled = torch.randperm(train_input.shape[0])
         input_shuffled = train_input[shuffled]
         target_shuffled = train_target[shuffled]
         
-        # Exchange image pairs to avoid noise depedency of the model
-        v = torch.randn(train_input.shape[0])
-        v = v > 0
+        # Exchange image pairs to avoid depedency of the model on input noise
+        v = torch.randn(train_input.shape[0]) > 0
         target_shuffled[v,:,:,:], input_shuffled[v,:,:,:] = input_shuffled[v,:,:,:], target_shuffled[v,:,:,:]
         
+        # info on device state before starting training
         if not torch.cuda.is_available() :
-            print("\nThings will go much quicker if you enable a GPU")
+            print("\nThings will go much quicker if you enable a GPU \n")
         else :
-            print("\nYou are running the training of the data on a GPU")
-
+            print("\nYou are running the training of the data on a GPU \n")
+        
+        # keep track of a small validation loss
         split_ratio = 0.8
         n = train_input.shape[0]
         train_input = input_shuffled[0:int(n*split_ratio),:,:,:].to(self.device)

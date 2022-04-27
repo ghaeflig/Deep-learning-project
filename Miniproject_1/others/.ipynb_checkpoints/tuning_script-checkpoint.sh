@@ -2,7 +2,7 @@
 # Model Tuning
 
 # template is:
-# ./run_sessions.py <run_idx>  <conv_by_level>  <pooling_type>  <batch_norm>  <dropout>  <features>  <optimizer>  <loss_func>
+# ./run_sessions.py <run_idx>  <conv_by_level>  <pooling_type>  <batch_norm>  <dropout>  <features>  <optimizer>  <loss_func>  <data_aug>
 
 # leave 'others' to launch runing session
 cd ..

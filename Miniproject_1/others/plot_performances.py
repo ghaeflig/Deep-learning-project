@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 fig, axes = plt.subplots(ncols = 2, figsize = (13,6))
 
 # labels defined with respect to runs defined in the tunings_script.sh
-labels = ['baseline', 'w/o batchnorm', 'max pooling', '1-conv layers', 'Adam', 'Adagrad', 'MAE', 'dropout: 0.5', 'more depth']
+labels = ['baseline', 'w/o batchnorm', 'max pooling', '1-conv layers', 'Adam', 'Adagrad', 'data aug.', 'dropout: 0.5', 'more features']
 for i, label in zip(range(1,10,1), labels):
     # load losses
     losses = torch.load(f'run{i}/train_val_loss')
