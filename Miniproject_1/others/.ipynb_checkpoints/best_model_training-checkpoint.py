@@ -1,7 +1,7 @@
 import sys
 import os
 import torch
-from helpers import create_imgs_plot, create_best_psnr()
+from helpers import create_imgs_plot, create_best_psnr
 sys.path.append('../')
 from model import * 
 
@@ -15,9 +15,10 @@ torch.manual_seed(0)
 # Get data and normalize (will be shuffled before training)
 noisy_imgs_1, noisy_imgs_2 = torch.load('../../data/train_data.pkl')
 noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1.float()/255, noisy_imgs_2.float()/255
+noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1[:100], noisy_imgs_2[:100]
 
 # create unique folder for this run en enter it
-path = f'others/best_model'
+path = f'best_model'
 if not os.path.exists(path):
     os.makedirs(path)
 os.chdir(path)
@@ -32,17 +33,10 @@ torch.save(losses, 'train_val_loss')
 
 # create plot of validation imgs for illustration and psnr performance
 print('Creating performance plots...')
-noisy_imgs, ground_truth = torch.load('../data/val_data.pkl')
+noisy_imgs, ground_truth = torch.load('../../../data/val_data.pkl')
+noisy_imgs, ground_truth = noisy_imgs.float()/255, ground_truth.float()/255
 denoised_imgs = Noise2noise.predict(noisy_imgs)
 
 create_imgs_plot(noisy_imgs, denoised_imgs, ground_truth)
 create_best_psnr(denoised_imgs, ground_truth)
 print(f'New performance plots available in: {path}')
-
-def create_best_psnr(denoised, ground_truth):
-    metric = psnr(denoised, ground_truth)
-    bp = plt.boxplot(metric, showmeans = True)
-    plt.legend([bp['medians'][0], bp['means'][0]], ['median', 'mean'])
-    plt.title('Boxplot of psnr (metric performance) of the best model on validation data')
-    plt.savefig('best_model_psnr_boxplot.png')
-    plt.close()

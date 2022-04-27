@@ -98,8 +98,8 @@ class Model(nn.Module):
         else:
             """ Instantiate model with arguments for experimenting """
             # architecture arguments
-            self.in_channels, self.out_channels, self.conv_by_level, self.features, self.pooling_type, self.batch_norm, self.dropout = model_ARGS
-            
+            self.in_channels, self.conv_by_level, self.features, self.pooling_type, self.batch_norm, self.dropout = model_ARGS
+            self.out_channels = self.in_channels
             # train arguments
             self.optimizer, self.loss_func, self.batch_size, self.num_epoch, self.data_aug = train_ARGS
             self.shape_control = shape_control
@@ -190,8 +190,8 @@ class Model(nn.Module):
         epoch = checkpoint['epoch']
         print("=> Loading checkpoint from a trained model at the best epoch {}".format(epoch))
         self.load_state_dict(checkpoint['model'])
-        self.set_optimizer()
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        #self.set_optimizer()
+        #self.optimizer.load_state_dict(checkpoint['optimizer'])
 
 
     def train(self, train_input, train_target) -> None:
@@ -299,7 +299,7 @@ class Model(nn.Module):
                 best_epoch = epoch
                 print("=> Saving checkpoint")
                 # record all aspects of model for correct best model architecture hardcoding and parameters loading later
-                checkpoint = {'epoch': epoch+1, 'model': self.state_dict(), 'optimizer': self.optimizer.state_dict(), 'batch_norm' : self.batch_norm, 'in_channels' : self.in_channels, 'conv_by_level' : self.conv_by_level, 'pooling_type' : self.pooling_type, 'features' : self.features, 'loss_func' : self.loss_func, 'batch_size' : self.batch_size, 'num_epoch' : self.num_epoch}
+                checkpoint = {'epoch': epoch+1, 'model': self.state_dict(), 'optimizer': self.optimizer.state_dict(), 'batch_norm' : self.batch_norm, 'in_channels' : self.in_channels, 'conv_by_level' : self.conv_by_level, 'pooling_type' : self.pooling_type, 'features' : self.features, 'loss_func' : self.loss_func, 'batch_size' : self.batch_size, 'num_epoch' : self.num_epoch, 'dropout' : self.dropout}
                 torch.save(checkpoint, 'bestmodel.pth')
         
         print('Training finished with best best results at epoch {} | Training loss : {:.4f} | Validation loss : {:.4f} '.format(best_epoch+1, train_losses[best_epoch], best_loss))
@@ -313,6 +313,7 @@ class Model(nn.Module):
 		#: returns a tensor of the size (N1 , C, H, W)
         #self.train(False)
         self.eval_func()
+        test_input = test_input.to(self.device)
         test_output = torch.empty(test_input.shape)
         test_batches = test_input.split(self.batch_size) #shuffled or not ?
         #print(len(test_batches))

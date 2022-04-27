@@ -7,9 +7,8 @@ sys.path.append('../')
 from model import *
 
 """ HARDCODED PARAMETERS """
-#subset = 2000
 batch_size = 50
-num_epoch = 10
+num_epoch = 20
 
 # set seeds for reproducibility
 torch.manual_seed(0)
@@ -25,20 +24,21 @@ noisy_imgs_2 = noisy_imgs_2[shuffled]
 
 """  Possibility to take a subset for tuning  """
 """"""""""""""""""""""""""""""""""""""""""""""""
-#noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1[:subset], noisy_imgs_2[:subset]
+subset = 15
+noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1[:subset], noisy_imgs_2[:subset]
 """"""""""""""""""""""""""""""""""""""""""""""""
 
 # Get run, model and training arguments from terminal
 _, run_idx, conv_by_level, pooling_type, batch_norm, dropout, features, optimizer, loss_func, data_aug  = sys.argv
 
 # architecture
-in_channels = out_channels = noisy_imgs_1.shape[1]
+in_channels = noisy_imgs_1.shape[1]
 conv_by_level = int(conv_by_level)
 features = list(map(int, features.strip('[]').split(',')))
 pooling_type = pooling_type
 batch_norm = bool(int(batch_norm))
 dropout = float(dropout)
-model_ARGS = [in_channels, out_channels, conv_by_level, features, pooling_type, batch_norm, dropout]
+model_ARGS = [in_channels, conv_by_level, features, pooling_type, batch_norm, dropout]
 
 # training
 optimizer = optimizer
@@ -51,7 +51,7 @@ train_ARGS = [optimizer, loss_func, batch_size, num_epoch, data_aug]
 print(f'Model arguments : \n {model_ARGS} \n {train_ARGS}')
 
 # create unique folder for this run en enter it
-path = f'others/run{run_idx}'
+path = f'run{run_idx}'
 if not os.path.exists(path):
     os.makedirs(path)
 os.chdir(path)
