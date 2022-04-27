@@ -2,7 +2,7 @@ import os
 import sys
 import torch
 
-# leave directory to enable correct imports and savings
+# leave directory to enable correct imports
 sys.path.append('../')
 from model import *
 
@@ -15,7 +15,7 @@ num_epoch = 10
 torch.manual_seed(0)
 
 # Get data and normalize
-noisy_imgs_1, noisy_imgs_2 = torch.load('../data/train_data.pkl')
+noisy_imgs_1, noisy_imgs_2 = torch.load('../../data/train_data.pkl')
 noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1.float()/255, noisy_imgs_2.float()/255
 
 # Shuffling in case we take a subset
