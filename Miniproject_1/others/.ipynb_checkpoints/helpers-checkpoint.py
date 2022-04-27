@@ -63,4 +63,5 @@ def create_plot_losses():
     plt.close()    
 
     
-def create_plot_psnr():
+#def create_plot_psnr():
+    
