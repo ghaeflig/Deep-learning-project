@@ -3,6 +3,7 @@ import sys
 import torch
 
 # leave directory to enable correct imports and savings
+sys.path.append('../')
 from model import *
 
 """ HARDCODED PARAMETERS """

@@ -5,7 +5,6 @@
 # ./run_sessions.py <run_idx>  <conv_by_level>  <pooling_type>  <batch_norm>  <dropout>  <features>  <optimizer>  <loss_func>  <data_aug>
 
 # leave 'others' to launch runing session
-cd ..
 
 # BASELINE
 echo "STARTING RUN 1/9"
@@ -46,6 +45,5 @@ python ./run_session.py  9  2  average  1  0  [8,16,32,64]  SGD  MSE 0
 echo "END OF RUN SESSION"
 
 echo "Creating performance comparison plot..."
-cd others
 python ./plot_performances.py
 echo "New performance plot available in current folder."

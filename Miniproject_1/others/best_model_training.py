@@ -1,9 +1,9 @@
 import os
+import sys
 import torch
 
-os.chdir('../')
-print(os.getcwd())
-from model import *
+sys.path.append('../')
+from model import * 
 print('pass')
 
 exit()
