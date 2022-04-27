@@ -9,11 +9,11 @@ cd ..
 
 # BASELINE
 echo "STARTING RUN 1/9"
-python ./run_session.py  1  2  average  1  0  [16,32,64]  SGD  MSE
+python ./run_session.py  1  2  average  1  0  [16,32,64]  SGD  MSE 0
 
 # without BATCHNORM
 echo "STARTING RUN 2/9"
-python ./run_session.py  2  2  average  0  0  [16,32,64]  SGD  MSE
+python ./run_session.py  2  2  average  0  0  [16,32,64]  SGD  MSE 0
 
 # using MAX POOLING instead of average
 echo "STARTING RUN 3/9"

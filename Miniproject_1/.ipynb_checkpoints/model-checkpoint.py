@@ -215,7 +215,6 @@ class Model(nn.Module):
             train_input = torch.cat((train_input, img_hflip, img_gaus), 0)
             train_target = torch.cat((train_target, target_hflip, target_gaus), 0)
         
-        split_ratio = 0.9
         shuffled = torch.randperm(train_input.shape[0])
         input_shuffled = train_input[shuffled]
         target_shuffled = train_target[shuffled]
@@ -230,6 +229,7 @@ class Model(nn.Module):
         else :
             print("\nYou are running the training of the data on a GPU")
 
+        split_ratio = 0.8
         n = train_input.shape[0]
         train_input = input_shuffled[0:int(n*split_ratio),:,:,:].to(self.device)
         train_target = target_shuffled[0:int(n*split_ratio),:,:,:].to(self.device)
