@@ -8,7 +8,7 @@ from model import *
 
 """ HARDCODED PARAMETERS """
 batch_size = 50
-num_epoch = 20
+num_epoch = 15
 
 # set seeds for reproducibility
 torch.manual_seed(0)
