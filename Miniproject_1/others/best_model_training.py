@@ -7,15 +7,13 @@ from model import *
 
 """ HARDCODED PARAMETERS """
 batch_size = 50
-num_epoch = 10
+num_epoch = 20
 
 # set seeds for reproducibility
 torch.manual_seed(0)
 
-# Get data and normalize (will be shuffled before training)
+# Load training data
 noisy_imgs_1, noisy_imgs_2 = torch.load('../../data/train_data.pkl')
-noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1.float()/255, noisy_imgs_2.float()/255
-noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1[:100], noisy_imgs_2[:100]
 
 # create unique folder for this run en enter it
 path = f'best_model'
@@ -26,15 +24,16 @@ os.chdir(path)
 # create model and train it. Best model state will be saved in folder
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 Noise2noise = Model().to(DEVICE)
-losses = Noise2noise.train(noisy_imgs_1, noisy_imgs_2)
+losses = Noise2noise.train(noisy_imgs_1, noisy_imgs_2, num_epoch)
 
 # record model loss
 torch.save(losses, 'train_val_loss')
 
+#Load validation data
+noisy_imgs, ground_truth = torch.load('../../../data/val_data.pkl')
+
 # create plot of validation imgs for illustration and psnr performance
 print('Creating performance plots...')
-noisy_imgs, ground_truth = torch.load('../../../data/val_data.pkl')
-noisy_imgs, ground_truth = noisy_imgs.float()/255, ground_truth.float()/255
 denoised_imgs = Noise2noise.predict(noisy_imgs)
 
 create_imgs_plot(noisy_imgs, denoised_imgs, ground_truth)

@@ -32,15 +32,7 @@ def create_imgs_plot(noisy, denoised, ground_truth, idx=[1,6,10]) :
     ax[0,2].set_title('Ground-truth images')
             
     plt.suptitle('Noisy, denoised and ground-truth images for some samples of the validation data')
-    
-    k = 1
-    path = f'Concatenated_imgs{k}.png'
-    while os.path.exists(path):
-        k += 1
-        path = f'Concatenated_imgs{k}.png'
-
-    # save figure
-    fig.savefig(path)
+    save_figure('Concatenated_imgs')
     plt.close()
     
 
@@ -65,22 +57,13 @@ def create_plot_losses():
     fig.suptitle('Comparison of performance for different model settings')
     fig.legend()
 
-    # make sure not to overwrite previous results
-    idx = 1
-    path = f'losses_{idx}.png'
-    while os.path.exists(path):
-        idx += 1
-        path = f'losses_{idx}.png'
-
-    # save figure
-    fig.savefig(path)
+    save_figure('losses')
     plt.close()    
 
     
 def create_plot_psnr():
     #sample = 100
     noisy_test, clean_test = torch.load('../../data/val_data.pkl')
-    noisy_test, clean_test = noisy_test.float()/255, clean_test.float()/255
     #noisy_test_sample,  clean_test_sample = noisy_test[:sample], clean_test[:sample]
     device = "cuda" if torch.cuda.is_available() else "cpu"
     psnrs = []
@@ -89,8 +72,9 @@ def create_plot_psnr():
         os.chdir(path='run{}'.format(i))
         
         arg = torch.load('bestmodel.pth', map_location=device)
-        model_ARGS = [arg['in_channels'], arg['conv_by_level'], arg['features'], arg['pooling_type'], arg['batch_norm'], 0]#arg['dropout']]
-        train_ARGS = [arg['optimizer'], arg['loss_func'], arg['batch_size'], arg['num_epoch'], 0]#arg['data_aug']]
+        model_ARGS = [arg['in_channels'], arg['conv_by_level'], arg['features'],
+                      arg['pooling_type'], arg['batch_norm'], arg['dropout']]
+        train_ARGS = [arg['optimizer'], arg['loss_func'], arg['batch_size'], arg['data_aug']]
         
         current_model = Model(model_ARGS, train_ARGS).to(device)
         current_model.load_pretrained_model()
@@ -104,7 +88,7 @@ def create_plot_psnr():
     plt.title('Boxplots of psnr over validation images for each trained model')
     plt.xticks(rotation = 45)
     plt.rc('xtick', labelsize=2)
-    plt.savefig('models_psnr.png')
+    save_figure('models_psnr')
     plt.close()
     
     
@@ -113,6 +97,15 @@ def create_best_psnr(denoised, ground_truth):
     bp = plt.boxplot(metric.numpy(), showmeans = True)
     plt.legend([bp['medians'][0], bp['means'][0]], ['median', 'mean'])
     plt.title('Boxplot of psnr (metric performance) of the best model on validation data')
-    plt.savefig('best_model_psnr_boxplot.png')
+    save_figure('best_model_psnr_boxplot')
     plt.close()
+
     
+def save_figure(path):
+    """ Save figure at <path> without overwriting if exists """
+    k = 1
+    path = f'{path}_{k}.png'
+    while os.path.exists(path):
+        k += 1
+        path = f'{path}_{k}.png'
+    plt.savefig(path)

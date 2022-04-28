@@ -74,7 +74,7 @@ class Model(nn.Module):
         super(Model, self).__init__()
         
         if model_ARGS == None:
-            """ IF NO ARGUMENT GIVEN --> HARDCODE MODEL ARCHITECTURE CORRESPONDING TO PRETRAINED MODEL """
+            """ Hardcoded best model architecture corresponding to pretrained model (instantiated if no arguments are given) """
             # architecture arguments
             self.in_channels = self.out_channels = 3
             self.conv_by_level = 2
@@ -89,23 +89,21 @@ class Model(nn.Module):
             self.optimizer = 'SGD'
             self.loss_func = nn.MSELoss().to(self.device)
             self.batch_size = 50
-            self.num_epoch = 15
             self.depth = len(self.features)
             self.data_aug = False
-            
-            
             
         else:
             """ Instantiate model with arguments for experimenting """
             # architecture arguments
             self.in_channels, self.conv_by_level, self.features, self.pooling_type, self.batch_norm, self.dropout = model_ARGS
             self.out_channels = self.in_channels
+            
             # train arguments
-            self.optimizer, self.loss_func, self.batch_size, self.num_epoch, self.data_aug = train_ARGS
+            self.optimizer, self.loss_func, self.batch_size, self.data_aug = train_ARGS
             self.shape_control = shape_control
             self.depth = len(self.features)
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            #self.data_aug = False
+            
             
             
         
@@ -189,17 +187,18 @@ class Model(nn.Module):
         checkpoint = torch.load('bestmodel.pth', map_location=self.device)
         epoch = checkpoint['epoch']
         print("=> Loading checkpoint from a trained model at the best epoch {}".format(epoch))
-        self.load_state_dict(checkpoint['model'])
-        #self.set_optimizer()
-        #self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.load_state_dict(checkpoint['model_state'])
+        self.set_optimizer()
+        self.optimizer.load_state_dict(checkpoint['optimizer_state'])
 
 
-    def train(self, train_input, train_target) -> None:
-		#: train_input : tensor of size (N, C, H, W) containing a noisy version of the images
-		#: train_target : tensor of size (N, C, H, W) containing another noisy version of the same images , which only differs from the input by their noise .
+    def train(self, train_input, train_target, num_epoch) -> None:
         
-        # prepare data for training
-        """ ANY PREPROCESSING """
+        """ Prepare data for training """
+        # Preprocessing
+        train_input, train_target = train_input.float()/255, train_target.float()/255
+
+        # Data augmentation
         if self.data_aug :
             #Data augmentation : horizontal flip
             print('Data augmentation...')
@@ -247,7 +246,7 @@ class Model(nn.Module):
         val_losses = []
         best_loss = sys.maxsize
         
-        for epoch in range(self.num_epoch):
+        for epoch in range(num_epoch):
             self.train_func()
             time_begin = time.time()
             
@@ -290,7 +289,7 @@ class Model(nn.Module):
                     
             
             val_epoch_loss = val_running_loss / len(val_input_batches)
-            print ('Epoch [%d/%d], Train loss: %.4f' %(epoch+1, self.num_epoch, epoch_loss), 'Validation loss: %.4f' %val_epoch_loss)
+            print ('Epoch [%d/%d], Train loss: %.4f' %(epoch+1, num_epoch, epoch_loss), 'Validation loss: %.4f' %val_epoch_loss)
             val_losses.append(val_epoch_loss)
             
             # UPDATE BEST MODEL given the validation loss
@@ -299,7 +298,11 @@ class Model(nn.Module):
                 best_epoch = epoch
                 print("=> Saving checkpoint")
                 # record all aspects of model for correct best model architecture hardcoding and parameters loading later
-                checkpoint = {'epoch': epoch+1, 'model': self.state_dict(), 'optimizer': self.optimizer.state_dict(), 'batch_norm' : self.batch_norm, 'in_channels' : self.in_channels, 'conv_by_level' : self.conv_by_level, 'pooling_type' : self.pooling_type, 'features' : self.features, 'loss_func' : self.loss_func, 'batch_size' : self.batch_size, 'num_epoch' : self.num_epoch, 'dropout' : self.dropout}
+                checkpoint = {'epoch': epoch+1, 'model_state': self.state_dict(), 'optimizer': self.optimizer,
+                              'optimizer_state': self.optimizer.state_dict(), 'batch_norm' : self.batch_norm,
+                              'in_channels' : self.in_channels, 'conv_by_level' : self.conv_by_level,
+                              'pooling_type' : self.pooling_type, 'features' : self.features, 'dropout' : self.dropout,
+                              'loss_func' : self.loss_func, 'batch_size' : self.batch_size, 'data_aug' : self.data_aug}
                 torch.save(checkpoint, 'bestmodel.pth')
         
         print('Training finished with best best results at epoch {} | Training loss : {:.4f} | Validation loss : {:.4f} '.format(best_epoch+1, train_losses[best_epoch], best_loss))
@@ -309,25 +312,24 @@ class Model(nn.Module):
     
     
     def predict(self, test_input) -> torch.Tensor:
-		#: test_input : tensor of size (N1 , C, H, W) that has to be denoised by the trained the loaded network .
-		#: returns a tensor of the size (N1 , C, H, W)
-        #self.train(False)
         self.eval_func()
+        # normalize and put on device
+        test_input = test_input.float()/255
         test_input = test_input.to(self.device)
+        # prepare for prediction
         test_output = torch.empty(test_input.shape)
-        test_batches = test_input.split(self.batch_size) #shuffled or not ?
-        #print(len(test_batches))
+        test_batches = test_input.split(self.batch_size)
+        
         with torch.no_grad() :
             for idx, test_batch in enumerate(test_batches):
-                #print(test_batch.shape)
                 out = self(test_batch)
                 for k in range(self.batch_size) :
                     #print(idx*self.batch_size + k)
                     test_output[idx*self.batch_size + k,:,:,:] = out[k,:,:,:]
-        return test_output
+        return test_output*255 # denormalized output
     
     
-    def set_optimizer(self):
+    def set_optimizer(self) -> None:
         " Called when the model is used to set the optimizer, as it cannot be done before __init__() is done. "
         if self.optimizer == 'SGD': self.optimizer = torch.optim.SGD(self.parameters(), lr=0.01, momentum = 0.9)
         elif self.optimizer == 'Adam': self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001, betas=(0.9, 0.999))
