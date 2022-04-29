@@ -44,5 +44,5 @@ python ./tuning_session.py  17  1  average  0  0  [4,8,12,16,18]  SGD  MSE 0
 echo "END OF RUN SESSION"
 
 echo "Creating performance comparison plot..."
-python ./plot_performances.py
+python ./plot_performances.py 2
 echo "New performance plot available in current folder."
