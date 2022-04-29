@@ -9,6 +9,9 @@ from model import *
 def psnr(denoised , ground_truth):
 	# Peak Signal to Noise Ratio : denoised and ground_truth have range [0, 1]
 	#mse = torch.mean(( denoised - ground_truth ) ** 2)
+    
+    # normalise images
+    denoised, ground_truth = denoised/255, ground_truth/255
     mse = torch.mean((denoised - ground_truth)**2, dim=[1,2,3])
     return -10 * torch.log10(mse + 10**-8)
 
