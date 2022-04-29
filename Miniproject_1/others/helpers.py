@@ -39,11 +39,15 @@ def create_imgs_plot(noisy, denoised, ground_truth, idx=[1,6,10]) :
     plt.close()
     
 
-def create_plot_losses(labels):
+def create_plot_losses(script_id, labels):
+    # adjust folders index to corresponding script
+    offset = 9*script_id
+    
+    #plot figure
     fig, axes = plt.subplots(ncols = 2, figsize = (13,6))
-
+    
     # labels defined with respect to runs defined in the tunings_script.sh
-    for i, label in zip(range(1,10,1), labels):
+    for i, label in zip(torch.arange(1,10,1)+offset, labels):
         # load losses
         losses = torch.load(f'run{i}/train_val_loss')
         # plot train and val losses
@@ -63,13 +67,15 @@ def create_plot_losses(labels):
     plt.close()    
 
     
-def create_plot_psnr(labels):
-    #sample = 100
+def create_plot_psnr(script_id, labels):
+    # adjust folders index to corresponding script
+    offset = 9*script_id
+    
     noisy_test, clean_test = torch.load('../../data/val_data.pkl')
     #noisy_test_sample,  clean_test_sample = noisy_test[:sample], clean_test[:sample]
     device = "cuda" if torch.cuda.is_available() else "cpu"
     psnrs = []
-    for i, label in zip(range(1,10,1), labels):
+    for i, label in zip(torch.arange(1,10,1)+offset, labels):
         os.chdir(path='run{}'.format(i))
         
         arg = torch.load('bestmodel.pth', map_location=device)
