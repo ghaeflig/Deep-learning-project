@@ -8,7 +8,7 @@ from model import *
 
 """ HARDCODED PARAMETERS """
 batch_size = 50
-num_epoch = 20
+num_epoch = 3 #15
 
 # set seeds for reproducibility
 torch.manual_seed(0)
@@ -23,8 +23,8 @@ noisy_imgs_2 = noisy_imgs_2[shuffled]
 
 """  Possibility to take a subset for tuning  """
 """"""""""""""""""""""""""""""""""""""""""""""""
-#subset = 100
-#noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1[:subset], noisy_imgs_2[:subset]
+subset = 100
+noisy_imgs_1, noisy_imgs_2 = noisy_imgs_1[:subset], noisy_imgs_2[:subset]
 """"""""""""""""""""""""""""""""""""""""""""""""
 
 # Get run, model and training arguments from terminal
