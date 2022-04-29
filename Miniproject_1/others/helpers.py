@@ -107,8 +107,8 @@ def create_best_psnr(denoised, ground_truth):
 def save_figure(path):
     """ Save figure at <path> without overwriting if exists """
     k = 1
-    path = f'{path}_{k}.png'
-    while os.path.exists(path):
+    final_path = f'{path}_{k}.png'
+    while os.path.exists(final_path):
         k += 1
-        path = f'{path}_{k}.png'
-    plt.savefig(path)
+        final_path = f'{path}_{k}.png'
+    plt.savefig(final_path)
