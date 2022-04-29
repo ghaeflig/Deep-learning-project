@@ -39,11 +39,10 @@ def create_imgs_plot(noisy, denoised, ground_truth, idx=[1,6,10]) :
     plt.close()
     
 
-def create_plot_losses():
+def create_plot_losses(labels):
     fig, axes = plt.subplots(ncols = 2, figsize = (13,6))
 
     # labels defined with respect to runs defined in the tunings_script.sh
-    labels = ['baseline', 'w/o batchnorm', 'max pooling', '1-conv layers', 'Adam', 'Adagrad', 'data aug.', 'dropout: 0.5', 'more features']
     for i, label in zip(range(1,10,1), labels):
         # load losses
         losses = torch.load(f'run{i}/train_val_loss')
@@ -64,13 +63,12 @@ def create_plot_losses():
     plt.close()    
 
     
-def create_plot_psnr():
+def create_plot_psnr(labels):
     #sample = 100
     noisy_test, clean_test = torch.load('../../data/val_data.pkl')
     #noisy_test_sample,  clean_test_sample = noisy_test[:sample], clean_test[:sample]
     device = "cuda" if torch.cuda.is_available() else "cpu"
     psnrs = []
-    labels = ['baseline', 'w/o batchnorm', 'max pooling', '1-conv layers', 'Adam', 'Adagrad', 'data aug.', 'dropout: 0.5', 'more features']
     for i, label in zip(range(1,10,1), labels):
         os.chdir(path='run{}'.format(i))
         
