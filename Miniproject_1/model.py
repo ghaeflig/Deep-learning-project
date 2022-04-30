@@ -88,7 +88,7 @@ class Model(nn.Module):
             self.shape_control = False
             self.optimizer = 'SGD'
             self.loss_func = nn.MSELoss().to(self.device)
-            self.batch_size = 50
+            self.batch_size = 100
             self.depth = len(self.features)
             self.data_aug = True
             
@@ -326,7 +326,7 @@ class Model(nn.Module):
                 for k in range(self.batch_size) :
                     #print(idx*self.batch_size + k)
                     test_output[idx*self.batch_size + k,:,:,:] = out[k,:,:,:]
-        return test_output*255 # denormalized output
+        return (test_output*255) # denormalized output
     
     
     def set_optimizer(self) -> None:
