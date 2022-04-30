@@ -77,9 +77,9 @@ class Model(nn.Module):
             """ Hardcoded best model architecture corresponding to pretrained model (instantiated if no arguments are given) """
             # architecture arguments
             self.in_channels = self.out_channels = 3
-            self.conv_by_level = 2
+            self.conv_by_level = 1
             self.pooling_type = 'average'
-            self.batch_norm = True
+            self.batch_norm = False
             self.dropout = 0
             self.features = [16,32,64]
             
@@ -90,7 +90,7 @@ class Model(nn.Module):
             self.loss_func = nn.MSELoss().to(self.device)
             self.batch_size = 50
             self.depth = len(self.features)
-            self.data_aug = False
+            self.data_aug = True
             
         else:
             """ Instantiate model with arguments for experimenting """
