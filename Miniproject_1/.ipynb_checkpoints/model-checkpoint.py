@@ -326,7 +326,7 @@ class Model(nn.Module):
                 for k in range(self.batch_size) :
                     #print(idx*self.batch_size + k)
                     test_output[idx*self.batch_size + k,:,:,:] = out[k,:,:,:]
-        return (test_output*255).type(torch.uint8) # denormalized output, back to integers
+        return (test_output*255) # denormalized output
     
     
     def set_optimizer(self) -> None:
