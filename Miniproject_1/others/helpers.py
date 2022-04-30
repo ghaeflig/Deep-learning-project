@@ -18,9 +18,13 @@ def psnr(denoised , ground_truth):
 
 def create_imgs_plot(noisy, denoised, ground_truth, idx=[1,6,10]) :
     # Save a figure of concatenated images of denoised and ground truth whose indices are specified by id     
-        #cimg = torch.cat((noisy[i,:,:,:].permute(1,2,0), denoised[i,:,:,:].permute(1,2,0), ground_truth[i,:,:,:].permute(1,2,0)), axis=1)
-        #cimgs.append(cimg)
-        
+     
+    # Make sure images are integers to enable correct visualization
+    noisy = noisy.type(torch.uint8)
+    denoised = denoised.type(torch.uint8)
+    ground_truth = ground_truth.type(torch.uint8)
+    
+    # plot
     fig, ax = plt.subplots(len(idx), 3, figsize=(15,17))
     for j, i in enumerate(idx) :
             ax[j, 0].imshow(noisy[i,:,:,:].permute(1,2,0))
