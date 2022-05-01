@@ -327,6 +327,21 @@ class Model(nn.Module):
                     #print(idx*self.batch_size + k)
                     test_output[idx*self.batch_size + k,:,:,:] = out[k,:,:,:]
         return (test_output*255) # denormalized output
+
+    """def predict(self, test_input) -> torch.Tensor:
+        self.eval_func()
+        # normalize and put on device
+        test_input = test_input.float()/255
+        test_input = test_input.to(self.device)
+        # prepare for prediction
+        test_output = torch.empty(test_input.shape)
+        #test_batches = test_input.split(self.batch_size)
+        
+        with torch.no_grad() :
+            for i in range(test_input.shape[0]) :
+                out = self(test_input[i,:,:,:].unsqueeze(0))
+                test_output[i,:,:,:] = out.squeeze()
+        return (test_output*255) # denormalized output"""
     
     
     def set_optimizer(self) -> None:
