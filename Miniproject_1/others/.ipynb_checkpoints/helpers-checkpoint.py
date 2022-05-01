@@ -107,6 +107,7 @@ def create_best_psnr(denoised, ground_truth):
     metric = psnr(denoised, ground_truth)
     bp = plt.boxplot(metric.numpy(), showmeans = True)
     plt.legend([bp['medians'][0], bp['means'][0]], ['median', 'mean'])
+    plt.text(1.1, 31, f'mean: {round(torch.mean(metric).item(),2)}\nmedian: {round(torch.median(metric).item(),2)}')
     plt.title('Boxplot of psnr (metric performance) of the best model on validation data')
     save_figure('best_model_psnr_boxplot')
     plt.close()
