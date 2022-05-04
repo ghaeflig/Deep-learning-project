@@ -9,16 +9,21 @@ from model import *
 def psnr(denoised , ground_truth):
 	# Peak Signal to Noise Ratio : denoised and ground_truth have range [0, 1]
 	#mse = torch.mean(( denoised - ground_truth ) ** 2)
-    
     # normalise images
-    denoised, ground_truth = denoised/255, ground_truth/255
+    if (torch.max(denoised) > 1 and torch.max(ground_truth) > 1) :
+        denoised, ground_truth = denoised/255, ground_truth/255
     mse = torch.mean((denoised - ground_truth)**2, dim=[1,2,3])
     return -10 * torch.log10(mse + 10**-8)
 
 
 def create_imgs_plot(noisy, denoised, ground_truth, idx=[1,6,10]) :
     # Save a figure of concatenated images of denoised and ground truth whose indices are specified by id     
-     
+    
+    # Make sure images are in the correct range [0, 255]
+    if torch.max(noisy) <= 1 : noisy = noisy * 255
+    if torch.max(denoised) <= 1 : denoised = denoised * 255
+    if torch.max(ground_truth) <= 1 : ground_truth = ground_truth * 255
+            
     # Make sure images are integers to enable correct visualization
     noisy = noisy.type(torch.uint8)
     denoised = denoised.type(torch.uint8)

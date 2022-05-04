@@ -184,7 +184,8 @@ class Model(nn.Module):
         
     def load_pretrained_model(self) -> None:
 		## This loads the parameters saved in bestmodel .pth into the model
-        checkpoint = torch.load('bestmodel.pth', map_location=self.device)
+        #checkpoint = torch.load('bestmodel.pth', map_location=self.device)
+        checkpoint = torch.load('Deep-learning-project/Miniproject_1/bestmodel.pth', map_location=self.device)
         epoch = checkpoint['epoch']
         print("=> Loading checkpoint from a trained model at the best epoch {}".format(epoch))
         self.load_state_dict(checkpoint['model_state'])
@@ -192,11 +193,12 @@ class Model(nn.Module):
         self.optimizer.load_state_dict(checkpoint['optimizer_state'])
 
 
-    def train(self, train_input, train_target, num_epoch) -> None:
+    def train(self, train_input, train_target, num_epoch=50) : 
         
         """ Prepare data for training """
         # Preprocessing
-        train_input, train_target = train_input.float()/255, train_target.float()/255
+        if (torch.max(train_input) > 1 and torch.max(train_target) > 1) :
+            train_input, train_target = train_input.float()/255, train_target.float()/255
 
         # Data augmentation
         if self.data_aug :
@@ -314,8 +316,16 @@ class Model(nn.Module):
     def predict(self, test_input) -> torch.Tensor:
         self.eval_func()
         # normalize and put on device
-        test_input = test_input.float()/255
+        normalize = False
+        if torch.max(test_input) > 1 :
+            normalize = True
+            test_input = test_input.float()/255
         test_input = test_input.to(self.device)
+        
+        # if the test input can not be split into batches
+        if test_input.shape[0] < self.batch_size :
+            return self(test_input)
+
         # prepare for prediction
         test_output = torch.empty(test_input.shape)
         test_batches = test_input.split(self.batch_size)
@@ -324,9 +334,10 @@ class Model(nn.Module):
             for idx, test_batch in enumerate(test_batches):
                 out = self(test_batch)
                 for k in range(self.batch_size) :
-                    #print(idx*self.batch_size + k)
                     test_output[idx*self.batch_size + k,:,:,:] = out[k,:,:,:]
-        return (test_output*255) # denormalized output
+        # denormalized output            
+        #if normalize : test_output = test_output*255           
+        return test_output
     
     
     def set_optimizer(self) -> None:
