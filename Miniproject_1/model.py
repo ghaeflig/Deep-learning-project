@@ -316,9 +316,7 @@ class Model(nn.Module):
     def predict(self, test_input) -> torch.Tensor:
         self.eval_func()
         # normalize and put on device
-        normalize = False
         if torch.max(test_input) > 1 :
-            normalize = True
             test_input = test_input.float()/255
         test_input = test_input.to(self.device)
         
@@ -334,10 +332,8 @@ class Model(nn.Module):
             for idx, test_batch in enumerate(test_batches):
                 out = self(test_batch)
                 for k in range(self.batch_size) :
-                    test_output[idx*self.batch_size + k,:,:,:] = out[k,:,:,:]
-        # denormalized output            
-        #if normalize : test_output = test_output*255           
-        return test_output
+                    test_output[idx*self.batch_size + k,:,:,:] = out[k,:,:,:]         
+        return test_output 
     
     
     def set_optimizer(self) -> None:

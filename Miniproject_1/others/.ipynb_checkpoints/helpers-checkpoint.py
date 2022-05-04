@@ -10,7 +10,7 @@ def psnr(denoised , ground_truth):
 	# Peak Signal to Noise Ratio : denoised and ground_truth have range [0, 1]
 	#mse = torch.mean(( denoised - ground_truth ) ** 2)
     # normalise images
-    if (torch.max(denoised) > 1 and torch.max(ground_truth) > 1) :
+    if (torch.max(denoised) > 1.5 and torch.max(ground_truth) > 1.5) :
         denoised, ground_truth = denoised/255, ground_truth/255
     mse = torch.mean((denoised - ground_truth)**2, dim=[1,2,3])
     return -10 * torch.log10(mse + 10**-8)
@@ -20,9 +20,9 @@ def create_imgs_plot(noisy, denoised, ground_truth, idx=[1,6,10]) :
     # Save a figure of concatenated images of denoised and ground truth whose indices are specified by id     
     
     # Make sure images are in the correct range [0, 255]
-    if torch.max(noisy) <= 1 : noisy = noisy * 255
-    if torch.max(denoised) <= 1 : denoised = denoised * 255
-    if torch.max(ground_truth) <= 1 : ground_truth = ground_truth * 255
+    if torch.max(noisy) <= 1.5 : noisy = noisy * 255
+    if torch.max(denoised) <= 1.5 : denoised = denoised * 255
+    if torch.max(ground_truth) <= 1.5 : ground_truth = ground_truth * 255
             
     # Make sure images are integers to enable correct visualization
     noisy = noisy.type(torch.uint8)
@@ -39,11 +39,11 @@ def create_imgs_plot(noisy, denoised, ground_truth, idx=[1,6,10]) :
             ax[j, 2].imshow(ground_truth[i,:,:,:].permute(1,2,0))
             ax[j, 2].axis('off')
             
-    ax[0,0].set_title('Noisy images')
-    ax[0,1].set_title('Denoised images')
-    ax[0,2].set_title('Ground-truth images')
+    ax[0,0].set_title('Noisy images', fontsize=30)
+    ax[0,1].set_title('Denoised images', fontsize=30)
+    ax[0,2].set_title('Ground-truth', fontsize=30)
             
-    plt.suptitle('Noisy, denoised and ground-truth images for some samples of the validation data')
+    plt.suptitle('Noisy, denoised and ground-truth images for some samples of the validation data', fontsize=20)
     save_figure('Concatenated_imgs')
     plt.close()
     
