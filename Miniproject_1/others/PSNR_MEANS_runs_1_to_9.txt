@@ -1,0 +1,9 @@
+baseline: mean = 15.9946870803833
+w/o batchnorm: mean = 24.201656341552734
+max pooling: mean = 17.563051223754883
+1-conv layers: mean = 24.306644439697266
+Adam: mean = 16.02811050415039
+Adagrad: mean = 14.597502708435059
+data aug.: mean = 17.182971954345703
+dropout: 0.5: mean = 15.049661636352539
+more features: mean = 14.027261734008789
