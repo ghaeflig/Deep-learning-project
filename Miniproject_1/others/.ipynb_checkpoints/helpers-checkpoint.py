@@ -9,9 +9,10 @@ from model import *
 def psnr(denoised , ground_truth):
 	# Peak Signal to Noise Ratio : denoised and ground_truth have range [0, 1]
 	#mse = torch.mean(( denoised - ground_truth ) ** 2)
-    # normalise images
-    if (torch.max(denoised) > 1.5 and torch.max(ground_truth) > 1.5) :
-        denoised, ground_truth = denoised/255, ground_truth/255
+    # normalise images if needed
+    if (torch.max(ground_truth) > 1): ground_truth = ground_truth/255
+    if (torch.max(denoised) > 20): denoised = denoised/255
+        
     mse = torch.mean((denoised - ground_truth)**2, dim=[1,2,3])
     return -10 * torch.log10(mse + 10**-8)
 
@@ -20,9 +21,9 @@ def create_imgs_plot(noisy, denoised, ground_truth, idx=[1,6,10]) :
     # Save a figure of concatenated images of denoised and ground truth whose indices are specified by id     
     
     # Make sure images are in the correct range [0, 255]
-    if torch.max(noisy) <= 1.5 : noisy = noisy * 255
-    if torch.max(denoised) <= 1.5 : denoised = denoised * 255
-    if torch.max(ground_truth) <= 1.5 : ground_truth = ground_truth * 255
+    if torch.max(noisy) <= 20 : noisy = noisy * 255
+    if torch.max(denoised) <= 20 : denoised = denoised * 255
+    if torch.max(ground_truth) <= 20 : ground_truth = ground_truth * 255
             
     # Make sure images are integers to enable correct visualization
     noisy = noisy.type(torch.uint8)
@@ -84,9 +85,11 @@ def create_plot_psnr(script_id, labels):
     #noisy_test_sample,  clean_test_sample = noisy_test[:sample], clean_test[:sample]
     device = "cuda" if torch.cuda.is_available() else "cpu"
     psnrs = []
+    means = []
     for i, label in zip(torch.arange(1,10,1)+offset, labels):
         os.chdir(path='run{}'.format(i))
         
+        # get model
         arg = torch.load('bestmodel.pth', map_location=device)
         model_ARGS = [arg['in_channels'], arg['conv_by_level'], arg['features'],
                       arg['pooling_type'], arg['batch_norm'], arg['dropout']]
@@ -97,6 +100,7 @@ def create_plot_psnr(script_id, labels):
         pred_test = current_model.predict(noisy_test)
         metric = psnr(pred_test, clean_test)
         psnrs.append(metric)
+        means.append(torch.mean(metric))
         os.chdir(path='../')
         
     bp = plt.boxplot(psnrs, labels = labels, showmeans = True)
@@ -107,6 +111,10 @@ def create_plot_psnr(script_id, labels):
     save_figure('models_psnr')
     plt.close()
     
+    # create txt with means in numerical values
+    with open("PSNR_MEANS.txt", "w") as file:
+        for label, mean in zip(labels, means):
+            file.write(f"{label}: mean = {mean}\n")
     
 def create_best_psnr(denoised, ground_truth):
     metric = psnr(denoised, ground_truth)

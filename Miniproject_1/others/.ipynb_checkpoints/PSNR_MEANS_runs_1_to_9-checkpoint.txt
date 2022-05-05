@@ -1,0 +1,2 @@
+['baseline', 'w/o batchnorm', 'max pooling', '1-conv layers', 'Adam', 'Adagrad', 'data aug.', 'dropout: 0.5', 'more features'] 
+[array(15.994687, dtype=float32), array(24.201656, dtype=float32), array(17.563051, dtype=float32), array(24.306644, dtype=float32), array(16.02811, dtype=float32), array(14.597503, dtype=float32), array(17.182972, dtype=float32), array(15.049662, dtype=float32), array(14.027262, dtype=float32)]
