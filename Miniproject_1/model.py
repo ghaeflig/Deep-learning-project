@@ -7,6 +7,7 @@ from torchvision.transforms import GaussianBlur
 import time
 import random
 import sys
+import os
 
 # set seed for reproducibility
 random.seed(0)
@@ -184,8 +185,15 @@ class Model(nn.Module):
         
     def load_pretrained_model(self) -> None:
 		## This loads the parameters saved in bestmodel .pth into the model
-        #checkpoint = torch.load('bestmodel.pth', map_location=self.device)
-        checkpoint = torch.load('Deep-learning-project/Miniproject_1/bestmodel.pth', map_location=self.device)
+        
+        # called in current directory by default to enable scripts to run as expected
+        path = 'bestmodel.pth'
+        
+        # MAKE SURE THE TEST.PY CAN BE CALLED ANYWHERE
+        if not os.path.exists(path): path = 'Deep-learning-project/Miniproject_1/bestmodel.pth'
+        if not os.path.exists(path): path = 'Miniproject_1/bestmodel.pth'
+        
+        checkpoint = torch.load(path, map_location=self.device)
         epoch = checkpoint['epoch']
         print("=> Loading checkpoint from a trained model at the best epoch {}".format(epoch))
         self.load_state_dict(checkpoint['model_state'])
