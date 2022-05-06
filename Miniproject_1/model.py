@@ -201,7 +201,7 @@ class Model(nn.Module):
         self.optimizer.load_state_dict(checkpoint['optimizer_state'])
 
 
-    def train(self, train_input, train_target, num_epoch=50) : 
+    def train(self, train_input, train_target, num_epochs=50) : 
         
         """ Prepare data for training """
         # Preprocessing
@@ -256,7 +256,7 @@ class Model(nn.Module):
         val_losses = []
         best_loss = sys.maxsize
         
-        for epoch in range(num_epoch):
+        for epoch in range(num_epochs):
             self.train_func()
             time_begin = time.time()
             
@@ -299,7 +299,7 @@ class Model(nn.Module):
                     
             
             val_epoch_loss = val_running_loss / len(val_input_batches)
-            print ('Epoch [%d/%d], Train loss: %.4f' %(epoch+1, num_epoch, epoch_loss), 'Validation loss: %.4f' %val_epoch_loss)
+            print ('Epoch [%d/%d], Train loss: %.4f' %(epoch+1, num_epochs, epoch_loss), 'Validation loss: %.4f' %val_epoch_loss)
             val_losses.append(val_epoch_loss)
             
             # UPDATE BEST MODEL given the validation loss
@@ -340,7 +340,11 @@ class Model(nn.Module):
             for idx, test_batch in enumerate(test_batches):
                 out = self(test_batch)
                 for k in range(self.batch_size) :
-                    test_output[idx*self.batch_size + k,:,:,:] = out[k,:,:,:]         
+                    test_output[idx*self.batch_size + k,:,:,:] = out[k,:,:,:]   
+
+        test_output = test_output * 255
+        test_output[test_output>255] = 255 
+        test_output[test_output<0] = 0  
         return test_output 
     
     

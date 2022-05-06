@@ -8,7 +8,7 @@ from model import *
 
 """ HARDCODED PARAMETERS """
 batch_size = 50
-num_epoch = 15
+num_epochs = 15
 
 # set seeds for reproducibility
 torch.manual_seed(0)
@@ -57,7 +57,7 @@ os.chdir(path)
 # create model and train it. Best model state will be saved in folder
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 Noise2noise = Model(model_ARGS, train_ARGS).to(DEVICE)
-losses = Noise2noise.train(noisy_imgs_1, noisy_imgs_2, num_epoch)
+losses = Noise2noise.train(noisy_imgs_1, noisy_imgs_2, num_epochs)
 
 # record model loss
 torch.save(losses, 'train_val_loss')
