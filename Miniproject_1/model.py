@@ -328,14 +328,18 @@ class Model(nn.Module):
             test_input = test_input.float()/255
         test_input = test_input.to(self.device)
         
-        # if the test input can not be split into batches
-        if test_input.shape[0] < self.batch_size :
-            return self(test_input)
-
         # prepare for prediction
         test_output = torch.empty(test_input.shape)
         test_batches = test_input.split(self.batch_size)
-        
+
+        # if the test input can not be split into batches
+        if test_input.shape[0] < self.batch_size :
+            test_output = self(test_input)
+            test_output = test_output * 255
+            test_output[test_output>255] = 255 
+            test_output[test_output<0] = 0 
+            return test_output
+
         with torch.no_grad() :
             for idx, test_batch in enumerate(test_batches):
                 out = self(test_batch)
