@@ -21,13 +21,15 @@ class Single_Conv(nn.Module):
     """ Implements 1 convolution by level. Optional batch_norm and dropout """
     def __init__(self, in_c, out_c, batch_norm, dropout):
         super(Single_Conv, self).__init__()
+
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
     
-        conv1 = nn.Conv2d(in_c, out_c, kernel_size = (3,3), stride = 1, padding = 1)
+        conv1 = nn.Conv2d(in_c, out_c, kernel_size = (3,3), stride = 1, padding = 1).to(self.device)
         if not batch_norm:
-            self.conv = nn.Sequential(conv1, nn.ReLU())
+            self.conv = nn.Sequential(conv1, nn.ReLU()).to(self.device)
         else:
-            BN = nn.BatchNorm2d(out_c)
-            self.conv = nn.Sequential(conv1, BN, nn.ReLU())
+            BN = nn.BatchNorm2d(out_c).to(self.device)
+            self.conv = nn.Sequential(conv1, BN, nn.ReLU()).to(self.device)
         
         # Setting DROPOUT probability
         self.drop_proba = dropout
@@ -44,14 +46,16 @@ class Double_Conv(nn.Module):
     """ Implements 2 convolutions by level. Optional batch_norm and dropout """
     def __init__(self, in_c, out_c, batch_norm, dropout):
         super(Double_Conv, self).__init__()
+
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        conv1 = nn.Conv2d(in_c, out_c, kernel_size = (3,3), stride = 1, padding = 1)
-        conv2 = nn.Conv2d(out_c, out_c, kernel_size = (3,3), stride = 1, padding = 1)
+        conv1 = nn.Conv2d(in_c, out_c, kernel_size = (3,3), stride = 1, padding = 1).to(self.device)
+        conv2 = nn.Conv2d(out_c, out_c, kernel_size = (3,3), stride = 1, padding = 1).to(self.device)
         if not batch_norm:
-            self.conv = nn.Sequential(conv1, nn.ReLU(), conv2, nn.ReLU())
+            self.conv = nn.Sequential(conv1, nn.ReLU(), conv2, nn.ReLU()).to(self.device)
         else:
-            BN = nn.BatchNorm2d(out_c)
-            self.conv = nn.Sequential(conv1, BN, nn.ReLU(), conv2, BN, nn.ReLU())
+            BN = nn.BatchNorm2d(out_c).to(self.device)
+            self.conv = nn.Sequential(conv1, BN, nn.ReLU(), conv2, BN, nn.ReLU()).to(self.device)
     
     # Setting DROPOUT probability
         self.drop_proba = dropout
@@ -117,24 +121,24 @@ class Model(nn.Module):
         elif self.pooling_type == 'average': self.Pooling = nn.AvgPool2d((2,2))
             
         # Creating ENCODING layers
-        self.DOWNCONV = nn.ModuleList()
+        self.DOWNCONV = nn.ModuleList().to(self.device)
         in_channels = self.in_channels
         for feature in self.features:
             self.DOWNCONV.append(self.conv_func(in_channels, feature, self.batch_norm, self.dropout))
             in_channels = feature
         
         # Creating DECODING layers
-        self.UPSCALING = nn.ModuleList()
-        self.UPCONV = nn.ModuleList()
+        self.UPSCALING = nn.ModuleList().to(self.device)
+        self.UPCONV = nn.ModuleList().to(self.device)
         for feature in self.features[::-1]:
-            self.UPSCALING.append(nn.ConvTranspose2d(2*feature, feature, kernel_size = 2, stride = 2))
+            self.UPSCALING.append(nn.ConvTranspose2d(2*feature, feature, kernel_size = 2, stride = 2).to(self.device))
             self.UPCONV.append(self.conv_func(2*feature, feature, self.batch_norm, self.dropout))
         
         # Bottom convolution
         self.deepest_conv = self.conv_func(self.features[-1], self.features[-1]*2, self.batch_norm, self.dropout)
         
         # Final conv
-        self.final_layer = nn.Conv2d(self.features[0], self.out_channels, kernel_size = (3,3), stride = 1, padding = 1)
+        self.final_layer = nn.Conv2d(self.features[0], self.out_channels, kernel_size = (3,3), stride = 1, padding = 1).to(self.device)
             
             
     def forward(self, x):
