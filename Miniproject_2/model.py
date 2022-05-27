@@ -1,20 +1,22 @@
-from torch import empty, cat, arange
-from torch.nn.functional import fold, unfold
-from functools import reduce
 import math
 import warnings
 import pickle
 import time
 import random
 import os
-# import matplotlib
-# matplotlib.use('Qt5Agg')
-import matplotlib.pyplot as plt
+from functools import reduce
 
-from torch import cuda, load
+import matplotlib.pyplot as plt # used for plotting images
 
-# from torch import set_grad_enabled
-# set_grad_enabled(False)
+from torch import empty, cat, arange
+from torch.nn.functional import fold, unfold
+from torch import cuda, load # cuda is imported in order to run on GPU (faster)
+from torch import load # load is used to load the data (train_data.pkl, val_data.pkl) / pickle was not working to load them, therefore we imported torch.load for this
+
+# set autograd off
+from torch import set_grad_enabled
+set_grad_enabled(False)
+
 
 def tensor_dilation2d(tensor, dilation=2):
     """
@@ -102,6 +104,13 @@ def psnr(denoised, ground_truth):
     if (denoised.max() > 20.0): denoised = denoised / 255.0
     mse = ((denoised - ground_truth) ** 2).mean(dim=[1, 2, 3])
     return -10 * (mse + 1e-8).log10()
+
+def get_data_path():
+    path = "../data/"
+    if not os.path.exists(path): path = "Deep-learning-project/data/"
+    if not os.path.exists(path): path = "data/"
+    return path
+
 
 class Module(object):
     """
@@ -270,8 +279,6 @@ class Conv2d(Module):
         weight_pair = [self.weight, self.grad_weight]
         bias_pair = [self.bias, self.grad_bias]
         parameters = [weight_pair, bias_pair]
-        # self.bias.fill_(0.0) # FIXME ASUP
-        # parameters = [weight_pair] # FIXME ASUP
         return parameters
 
     def load_param(self, parameters):
@@ -401,8 +408,6 @@ class TransposeConv2d(Module):
         weight_pair = [self.weight, self.grad_weight]
         bias_pair = [self.bias, self.grad_bias]
         parameters = [weight_pair, bias_pair]
-        # self.bias.fill_(0.0) # FIXME ASUP
-        # parameters = [weight_pair] # FIXME ASUP
         return parameters
 
     def load_param(self, parameters):
@@ -415,7 +420,7 @@ class TransposeConv2d(Module):
         Test.test__07(self.in_channels, self.out_channels, self.kernel_size[0], self.dilation, self.padding, self.stride, self.output_padding)
         Test.test__08(self.in_channels, self.out_channels, self.kernel_size[0], self.dilation, self.padding, self.stride, self.output_padding)
 
-class MSELoss():
+class MSE():
     """
     MSE Loss module.
     :param reduction: reduction algorithm (either 'mean' of the losses, either 'sum' of the losses), defaults to 'mean'
@@ -439,7 +444,7 @@ class MSELoss():
         :rtype: Tensor [1]
         """
         "input and target must have the same shape"
-        assert input.shape == target.shape, "MSELoss called with two different-shaped inputs."
+        assert input.shape == target.shape, "MSE called with two different-shaped inputs."
         self.input = input
         self.target = target
 
@@ -459,6 +464,35 @@ class MSELoss():
         elif self.reduction == "sum":
             grad = loss * (2 * self.input - 2 * self.target)
         return grad
+
+class SGD():
+    """
+    Stochastic Gradient Descent optimization.
+    Parameters can be obtained from Sequential.param() method -> these parameters are a view (not a copy) of the real parameters from the modules
+    :param parameters: Model parameters to update
+    :type parameters: list [len=n_modules] of list [len=n_params/module] of list of 2 Tensors [2]
+    :param lr: learning rate, defaults to 5.0
+    :type lr: float, optional
+    :param weight_decay: lambda for regularization, defaults to 0.0
+    :type weight_decay: float > 0.0, optional
+    """
+    def __init__(self, parameters, lr=5.0, weight_decay=0.0):
+        self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
+        self.parameters = parameters
+        self.lr = lr
+        self.weight_decay = weight_decay
+
+    def zero_grad(self):
+        """ Set all grad Tensors to 0. """
+        for i in range(len(self.parameters)):
+            self.parameters[i][1].fill_(0.0)
+
+    def step(self):
+        """ Update step """
+        for i in range(len(self.parameters)):
+            self.parameters[i][1].add_(self.weight_decay * self.parameters[i][0])
+            grad = self.parameters[i][1]
+            self.parameters[i][0].add_(-self.lr * grad)
 
 class Sequential():
     """
@@ -504,74 +538,64 @@ class Sequential():
             param += mod.param()
         return param
 
-class SGD():
-    """
-    Stochastic Gradient Descent optimization.
-    Parameters can be obtained from Sequential.param() method -> these parameters are a view (not a copy) of the real parameters from the modules
-    :param parameters: parameters to update
-    :type parameters: list [len=n_modules] of list [len=n_params/module] of list of 2 Tensors [2]
-    :param lr: learning rate
-    :type lr: float
-    :param weight_decay: lambda for regularization, defaults to 0.0
-    :type weight_decay: float > 0.0, optional
-    """
-    def __init__(self, parameters, lr=0.01, weight_decay=0.0):
-        self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
-        self.parameters = parameters
-        self.lr = lr
-        self.weight_decay = weight_decay
-
-    def zero_grad(self):
-        """ Set all grad Tensors to 0. """
-        for i in range(len(self.parameters)):
-            self.parameters[i][1].fill_(0.0)
-
-    def step(self):
-        """ Update step """
-        # self.lr = 0.993*self.lr
-        for i in range(len(self.parameters)):
-            self.parameters[i][1].add_(self.weight_decay * self.parameters[i][0])
-            grad = self.parameters[i][1]
-            self.parameters[i][0].add_(-self.lr * grad)
-
 class Model():
     """
     Model for miniproject 2.
+    :param model_param: dictionary containing several tuning parameters.
+                        1) 'mini_batch_size': mini batch size [int > 0, defaults to 64]
+                        2) 'lr': learning rate [float > 0.0, defaults to 5.0]
+                        3) 'channel_increase': channels number multiplication factor (out = channel_increase * in) [int > 0, defaults to 4]
+                        4) 'kernel': kernel size [int > 0, defaults to 3]
+                        5) 'padding': padding added in Conv2d and TransposeConv2d [int >= 0, defaults to 1]
+    :type model_param: dict, optional
     """
     def __init__(self, model_param=None):
         self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
-        # instantiate model (Sequential) + optimizer (SGD) + loss function (MSELoss)
+
+        # instantiate model (Sequential) + optimizer (SGD) + loss function (MSE)
         if model_param is None:
-            model_param = {"mini_batch": 256, "lr": 5.0, "weight_decay": 0.0}
+            model_param = {"mini_batch_size": 64, "lr": 5.0, "channel_increase": 4, "kernel": 3, "padding": 1} # defaults
+        kern = model_param["kernel"]
+        ch_incr = model_param["channel_increase"]
+        pad = model_param["padding"]
         self.model_param = model_param
-        self.model = Sequential(Conv2d(in_channels=3, out_channels=12, kernel_size=3, dilation=1, padding=1, stride=2),
+        self.model = Sequential(Conv2d(in_channels=3, out_channels=3*ch_incr, kernel_size=kern, dilation=1, padding=pad, stride=2),
                                 ReLU(),
-                                Conv2d(in_channels=12, out_channels=48, kernel_size=3, dilation=1, padding=1, stride=2),
+                                Conv2d(in_channels=3*ch_incr, out_channels=3*ch_incr*ch_incr, kernel_size=kern, dilation=1, padding=pad, stride=2),
                                 ReLU(),
-                                TransposeConv2d(in_channels=48, out_channels=12, kernel_size=3, dilation=1, padding=1, stride=2, output_padding=1),
+                                TransposeConv2d(in_channels=3*ch_incr*ch_incr, out_channels=3*ch_incr, kernel_size=kern, dilation=1, padding=pad, stride=2, output_padding=1),
                                 ReLU(),
-                                TransposeConv2d(in_channels=12, out_channels=3, kernel_size=3, dilation=1, padding=1, stride=2, output_padding=1),
+                                TransposeConv2d(in_channels=3*ch_incr, out_channels=3, kernel_size=kern, dilation=1, padding=pad, stride=2, output_padding=1),
                                 Sigmoid())
-        self.SGD_optimizer = SGD(self.model.param(), lr=self.model_param['lr'], weight_decay=self.model_param['weight_decay'])
-        self.MSE = MSELoss()
+        self.SGD_optimizer = SGD(self.model.param(), lr=self.model_param['lr'])
+        self.MSE_loss = MSE()
 
     def save_model(self, filename):
-        """ Saves the current model to filename (pkl file). """
+        """
+        Saves the current model to filename (pkl file).
+        The model is saved as pkl file after transfer to CPU (compatiblity).
+        """
         parameters = []
         for mod in self.model.modules:
-            parameters.append(mod.param())
+            param = mod.param()
+            param_cpu = []
+            for p in param:
+                param_cpu.append([p[0].clone().to('cpu'), p[1].clone().to('cpu')])
+            parameters.append(param_cpu)
         with open(filename, 'wb') as f:
             pickle.dump(parameters, f)
 
     def load_model(self, filename):
-        """ Loads the model of filename (pkl file). """
+        """
+        Loads the model of filename (pkl file).
+        """
         with open(filename, 'rb') as f:
             parameters = pickle.load(f)
         for id, mod in enumerate(self.model.modules):
             mod.load_param(parameters[id])
 
     def load_pretrained_model(self):
-        # This loads the parameters saved in bestmodel.pkl into the model
+        """ This loads the parameters saved in bestmodel.pkl into the model """
 
         # MAKE SURE THE TEST.PY CAN BE CALLED ANYWHERE
         path = "bestmodel.pkl"
@@ -589,26 +613,22 @@ class Model():
         train_target = train_target[order]
         return train_input, train_target
 
-    def data_generator(self, train_input, train_target, mini_batch_size=128, shuffle=True):
+    def data_generator(self, train_input, train_target, mini_batch_size=64, shuffle=True):
         """
         Generator of mini batches
         :param train_input: input tensor
         :type train_input: Tensor [N x C x H x W]
         :param train_target: target tensor
         :type train_target: Tensor [N x C x H x W]
-        :param mini_batch_size: size of one mini batch, defaults to 256
+        :param mini_batch_size: size of one mini batch, defaults to 64
         :type mini_batch_size: int > 0, optional
         :param shuffle: True if the data need to be shuffled, defaults to True
         :type shuffle: bool, optional
         :return: generator of mini batches (iterator)
         """
-        # Copies of the given inputs to avoid to modify the original Tensors
-        new_train_input = train_input#.clone()
-        new_train_target = train_target#.clone()
-
         # Shuffles the datasets
         if shuffle:
-            new_train_input, new_train_target = self.shuffle_data(new_train_input, new_train_target)
+            new_train_input, new_train_target = self.shuffle_data(train_input, train_target)
 
         # Create a generator
         N = train_input.shape[0]
@@ -619,7 +639,7 @@ class Model():
             if start < end:
                 yield new_train_input[start:end].to(self.DEVICE), new_train_target[start:end].to(self.DEVICE)
 
-    def train(self, train_input, train_target, num_epochs, debug=True):
+    def train(self, train_input, train_target, num_epochs, print_infos=False):
         """
         Trains the model
         :param train_input: input tensor (containing a noisy version of the images)
@@ -628,6 +648,8 @@ class Model():
         :type train_target: Tensor [N x C x H x W]
         :param num_epochs: number of epochs (total number of passed through the whole dataset)
         :type num_epochs: int > 0
+        :param print_infos: print training informations during the training, defaults to False
+        :type print_infos: bool, optional
         :return: None
         """
         # Scales the data to (0.0, 1.0) instead of (0, 255)
@@ -635,35 +657,33 @@ class Model():
             train_input = train_input / 255.0
             train_target = train_target / 255.0
 
-        self.image_tracked = train_input[0].clone()
-        path = "../data"
-        if not os.path.exists(path): path = "Deep-learning-project/data/"
-        if not os.path.exists(path): path = "data/"
-        test_noisy, test_cleaned = load(path + "val_data.pkl", map_location=self.DEVICE)
+        # used to keep track of PSNR
+        test_noisy, test_cleaned = load(get_data_path() + "val_data.pkl", map_location=self.DEVICE)
 
+        # technical variables used for printing informations
         t_beginning = time.time() # beginning time of the training
-        t_last_print = t_beginning
-        n_steps = 0
+        t_last_print = t_beginning # time since the last print
+        n_steps = 0 # number of minibatch processed
+
         for epoch in range(num_epochs):
-            for input_minibatch, target_minibatch in self.data_generator(train_input, train_target, mini_batch_size=self.model_param['mini_batch'], shuffle=True):
+            for input_minibatch, target_minibatch in self.data_generator(train_input, train_target, mini_batch_size=self.model_param['mini_batch_size'], shuffle=True):
                 predictions = self.model(input_minibatch).to(self.DEVICE)
-                loss = self.MSE.forward(predictions, target_minibatch)
-                if debug and time.time() - t_last_print > 1.0:
-                    t_last_print = time.time()
-                    print(f"Loss = {loss} [{epoch + 1}/{num_epochs},{n_steps * self.model_param['mini_batch']}/50000] {round(time.time()-t_beginning,2)} s")
-                    # print(self.model.param())
-                grad_loss = self.MSE.backward(loss)
+                loss = self.MSE_loss.forward(predictions, target_minibatch)
+
+                if print_infos and time.time() - t_last_print > 1.0:
+                    t_last_print = time.time() # print every second
+                    print(f"Loss = {loss} [Epoch {epoch + 1}/{num_epochs}, {n_steps * self.model_param['mini_batch_size']}/{train_input.shape[0]}] ({round(time.time()-t_beginning,2)} s)")
+
+                grad_loss = self.MSE_loss.backward(empty(1).fill_(1.0).to(self.DEVICE))
                 self.SGD_optimizer.zero_grad()
                 self.model.backward(grad_loss)
                 self.SGD_optimizer.step()
+
                 n_steps += 1
             n_steps = 0
             test_denoised = self.predict(test_noisy)
             PSNR = psnr(test_denoised, test_cleaned).mean()
-            print(f"PSNR = {PSNR}")
-            # image_tracked_pred = self.predict(self.image_tracked).reshape(self.image_tracked.shape).permute(1, 2, 0).to('cpu')
-            # plt.imshow(image_tracked_pred)
-            # plt.show()
+            if print_infos: print(f"Mean PSNR = {PSNR} (after epoch {epoch + 1})")
 
     def predict(self, test_input):
         """
@@ -678,37 +698,116 @@ class Model():
             test_input = test_input / 255.0
 
         test_output = self.model(test_input) # Forward pass
-        print(test_input.shape, test_output.shape)
         test_output = test_output * 255.0 # Scales back the data to (0, 255)
         return test_output.int()
 
 
-if __name__ == '__main__':
-    path = "../data"
-    if not os.path.exists(path): path = "Deep-learning-project/data/"
-    if not os.path.exists(path): path = "data/"
+def run_analysis(n_epochs=10):
+    """
+    Run different models with different parameters for analysis purpose.
+    :param n_epochs: number of epochs, defaults to 10
+    :type n_epochs: int > 0, optional
+    :return: None
+    """
+    DEVICE = 'cuda' if cuda.is_available() else 'cpu'  # GPU or CPU depending on hardware
 
-    DEVICE = 'cuda' if cuda.is_available() else 'cpu'
-    train_input, train_target = load(path + "train_data.pkl", map_location=DEVICE)
-    test_noisy, test_cleaned = load(path + "data/val_data.pkl", map_location=DEVICE)
-    print(train_input.shape, train_target.shape)
-    print(test_noisy.shape, test_cleaned.shape)
-    print(f"PSNR mean (before) = {psnr(test_noisy, test_cleaned).mean()}")
+    # Load the data
+    train_input, train_target = load(get_data_path() + "train_data.pkl", map_location=DEVICE)
+    test_noisy, test_cleaned = load(get_data_path() + "val_data.pkl", map_location=DEVICE)
+
+    # Models to test
+    model_param_to_test = [{"mini_batch_size": 64, "lr": 5.0, "channel_increase": 4, "kernel": 3, "padding": 1},
+                           {"mini_batch_size": 32, "lr": 5.0, "channel_increase": 4, "kernel": 3, "padding": 1},
+                           {"mini_batch_size": 128, "lr": 5.0, "channel_increase": 4, "kernel": 3, "padding": 1},
+                           {"mini_batch_size": 256, "lr": 5.0, "channel_increase": 4, "kernel": 3, "padding": 1},
+                           {"mini_batch_size": 64, "lr": 25.0, "channel_increase": 4, "kernel": 3, "padding": 1},
+                           {"mini_batch_size": 64, "lr": 1.0, "channel_increase": 4, "kernel": 3, "padding": 1},
+                           {"mini_batch_size": 64, "lr": 0.01, "channel_increase": 4, "kernel": 3, "padding": 1},
+                           {"mini_batch_size": 64, "lr": 5.0, "channel_increase": 2, "kernel": 3, "padding": 1},
+                           {"mini_batch_size": 64, "lr": 5.0, "channel_increase": 8, "kernel": 3, "padding": 1},
+                           {"mini_batch_size": 64, "lr": 5.0, "channel_increase": 4, "kernel": 5, "padding": 2}]
 
     # Model training and predictions
-    model_param = {"mini_batch": 256, "lr": 5.0, "weight_decay": 0.0}
-    Run = Model(model_param)
-    Run.load_pretrained_model()
-    Run.load_pretrained_model()
-    Run.train(train_input, train_target, 5)
-    Run.save_model(filename="bestmodel.pkl")
-    test_denoised = Run.predict(test_noisy)
-    print(f"PSNR mean (after) = {psnr(test_denoised, test_cleaned).mean()}")
+    for model_param in model_param_to_test:
+        t0 = time.time() # beginning time
+        Model_tested = Model(model_param)
+        Model_tested.train(train_input, train_target, n_epochs, print_infos=True)
+        test_denoised = Model_tested.predict(test_noisy)
+        psnr_mean = psnr(test_denoised, test_cleaned).mean()
+        t1 = time.time()  # end time
+        runtime = round(t1-t0, 2)
+        print(f"Final mean PSNR = {psnr_mean} (after {n_epochs} epochs, {runtime} sec)")
+        with open("others/Results.txt", mode='a') as f:
+            f.write(f"Mean PSNR = {psnr_mean} (after {n_epochs} epochs, {runtime} sec) | {model_param}\n")
+
+def run_best_model(n_epochs=25):
+
+    DEVICE = 'cuda' if cuda.is_available() else 'cpu'  # GPU or CPU depending on hardware
+
+    # Load the data
+    train_input, train_target = load(get_data_path() + "train_data.pkl", map_location=DEVICE)
+    test_noisy, test_cleaned = load(get_data_path() + "val_data.pkl", map_location=DEVICE)
+
+    # Best Model parameters
+    model_param = {"mini_batch_size": 64, "lr": 5.0, "channel_increase": 8, "kernel": 3, "padding": 1}
+
+    # Model training and predictions
+    t0 = time.time()  # beginning time
+    Model_tested = Model(model_param)
+    Model_tested.train(train_input, train_target, n_epochs, print_infos=True)
+    test_denoised = Model_tested.predict(test_noisy)
+    psnr_mean = psnr(test_denoised, test_cleaned).mean()
+    t1 = time.time()  # end time
+    runtime = round(t1 - t0, 2)
+    print(f"Best model final mean PSNR = {psnr_mean} (after {n_epochs} epochs, {runtime} sec)")
+    with open("others/Results.txt", mode='a') as f:
+        f.write(f"Best model final mean PSNR = {psnr_mean} (after {n_epochs} epochs, {runtime} sec) | {model_param}\n")
+
+    Model_tested.save_model(filename="bestmodel.pkl")
+
+def get_best_model_image(filename="best_model_prediction.jpg", index=0):
+    """
+    Creates and saves predictions from the best model.
+    :param filename: filename used to save the plot
+    :type filename: str
+    :param index: index of the image predicted, defaults to 0 (same image each time the function is called)
+    :type index: int >= 0, optional
+    :return: None
+    """
+    DEVICE = 'cuda' if cuda.is_available() else 'cpu'  # GPU or CPU depending on hardware
+
+    # Load the data
+    test_noisy, test_cleaned = load(get_data_path() + "val_data.pkl", map_location=DEVICE)
+
+    # Best Model parameters
+    model_param = {"mini_batch_size": 64, "lr": 5.0, "channel_increase": 8, "kernel": 3, "padding": 1}
+    Model_tested = Model(model_param)
+
+    # Loads best Model
+    Model_tested.load_pretrained_model()
+
+    # Predictions
+    test_denoised = Model_tested.predict(test_noisy)
 
     # Quick plotting to observe the result
     fig, ax = plt.subplots(1,3)
-    ax[0].imshow(test_noisy[0].permute(1,2,0).to('cpu'))
-    ax[1].imshow(test_cleaned[0].permute(1,2,0).to('cpu'))
-    ax[2].imshow(test_denoised[0].permute(1,2,0).to('cpu'))
-    plt.show()
+    ax[0].imshow(test_noisy[index].permute(1,2,0).to('cpu'))
+    ax[0].set_title("Noised image")
+    ax[1].imshow(test_cleaned[index].permute(1,2,0).to('cpu'))
+    ax[1].set_title("Ground truth image")
+    ax[2].imshow(test_denoised[index].permute(1,2,0).to('cpu'))
+    ax[2].set_title("Prediction image")
+    fig.savefig(fname = "others/" + filename)
 
+
+if __name__ == '__main__':
+    # Reproduction of the results:
+    run_analysis(n_epochs=10)
+    run_best_model(n_epochs=25)
+
+    # Get somes images with predictions from best model
+    get_best_model_image(filename="best_model_prediction1", index=0)
+    get_best_model_image(filename="best_model_prediction2", index=1)
+    get_best_model_image(filename="best_model_prediction3", index=2)
+    get_best_model_image(filename="best_model_prediction4", index=3)
+    get_best_model_image(filename="best_model_prediction5", index=4)
