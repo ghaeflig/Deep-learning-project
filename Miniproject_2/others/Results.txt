@@ -9,3 +9,4 @@ Mean PSNR = 22.16595458984375 (after 10 epochs, 298.33 sec) | {'mini_batch_size'
 Mean PSNR = 23.811153411865234 (after 10 epochs, 491.87 sec) | {'mini_batch_size': 64, 'lr': 5.0, 'channel_increase': 8, 'kernel': 3, 'padding': 1}
 Mean PSNR = 22.401296615600586 (after 10 epochs, 407.8 sec) | {'mini_batch_size': 64, 'lr': 5.0, 'channel_increase': 4, 'kernel': 5, 'padding': 2}
 
+Best model final mean PSNR = 24.36591148376465 (after 25 epochs, 1137.74 sec) | {'mini_batch_size': 64, 'lr': 5.0, 'channel_increase': 8, 'kernel': 3, 'padding': 1}
