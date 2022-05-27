@@ -7,6 +7,7 @@ random.seed(0)
 torch.manual_seed(0)
 
 def load_train_data(path = '../../data/train_data.pkl', data_aug = True) :
+    """ Function to load and augment data (tests). Not used in the final implementation of the models."""
     train_input, train_target = torch.load(path)
 
     if (torch.max(train_input) > 1 and torch.max(train_target) > 1) :

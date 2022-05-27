@@ -8,7 +8,7 @@ from torch import empty, cat, arange
 
 import sys
 sys.path.append("..")
-import miniproject2 as proj
+import model as proj
 
 
 class Test():
@@ -335,13 +335,13 @@ class Test():
         layer_torch1 = torch.nn.MSELoss(reduction="mean")
         result_torch1 = layer_torch1(data, target)
 
-        layer_test1 = proj.MSELoss(reduction="mean")
+        layer_test1 = proj.MSE(reduction="mean")
         result_test1 = layer_test1(data, target)
 
         layer_torch2 = torch.nn.MSELoss(reduction="sum")
         result_torch2 = layer_torch2(data, target)
 
-        layer_test2 = proj.MSELoss(reduction="sum")
+        layer_test2 = proj.MSE(reduction="sum")
         result_test2 = layer_test2(data, target)
 
         test1 = self.allclose(result_torch1, result_test1)
@@ -370,7 +370,7 @@ class Test():
         output_torch1.dist(zero_tensor1, p=2).backward()
         result_torch1 = data1.grad
 
-        layer_test1 = proj.MSELoss(reduction="mean")
+        layer_test1 = proj.MSE(reduction="mean")
         output_test1 = layer_test1(data1, target1)
         result_test1 = layer_test1.backward(output_torch1.grad)
 
@@ -385,7 +385,7 @@ class Test():
         output_torch2.dist(zero_tensor2, p=2).backward()
         result_torch2 = data2.grad
 
-        layer_test2 = proj.MSELoss(reduction="sum")
+        layer_test2 = proj.MSE(reduction="sum")
         output_test2 = layer_test2(data2, target2)
         result_test2 = layer_test2.backward(output_torch2.grad)
 
@@ -500,7 +500,7 @@ class Test():
             if biases[id] != None:
                 module.bias = biases[id]
         SGD_test = proj.SGD(model_test.param(), lr=10, weight_decay=0.0)
-        MSE_test = proj.MSELoss()
+        MSE_test = proj.MSE()
         data_test = data.clone().detach()
         predictions_test = model_test(data_test)
         SGD_test.zero_grad()
@@ -531,6 +531,7 @@ class Test():
 if __name__ == '__main__':
     torch.set_printoptions(precision=8)
     Test() # runs all tests after being instantiated
+    print("\n\n")
 
     # Model creation example and testing of each of its Modules
     model = proj.Sequential(proj.Conv2d(in_channels=3, out_channels=12, kernel_size=3, dilation=1, padding=1, stride=2),
