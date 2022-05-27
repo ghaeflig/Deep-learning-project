@@ -6,14 +6,12 @@ import warnings
 import pickle
 import time
 import random
+import os
 # import matplotlib
 # matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 
-random.seed(0)
-import torch
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'
-device = 'cpu'
+from torch import cuda, load
 
 # from torch import set_grad_enabled
 # set_grad_enabled(False)
@@ -28,9 +26,10 @@ def tensor_dilation2d(tensor, dilation=2):
     :return: dilated tensor
     :rtype: Tensor [... x (D2-1)*dilation+1 x (D1-1)*dilation+1]
     """
+    DEVICE = 'cuda' if cuda.is_available() else 'cpu'
     last_dims = [tensor.dim()-2, tensor.dim()-1] # get the two last dims indices
     new_shape = [dilation*(length-1)+1 if id in last_dims else length for id, length in enumerate(tensor.shape)] # create the new_shape for the new_tensor
-    new_tensor = empty(new_shape).fill_(0.0).to(device) # fill the new_tensor with 0.0 (defaults value for dilation)
+    new_tensor = empty(new_shape).fill_(0.0).to(DEVICE) # fill the new_tensor with 0.0 (defaults value for dilation)
     new_tensor[... , 0::dilation, 0::dilation] = tensor # copy the tensor inside the new_tensor in order to dilate it
     return new_tensor
 
@@ -48,6 +47,7 @@ def tensor_pad2d(tensor, pad=1, only_last_dim=False, only_first_dim=False):
     :return: padded tensor
     :rtype: Tensor [... x D2+2*pad[0] x D1+2*pad[1]] or [... x D2+pad[0] x D1+pad[1]] if asymmetric padding
     """
+    DEVICE = 'cuda' if cuda.is_available() else 'cpu'
     if only_last_dim and only_first_dim:
         warnings.warn("tensor_pad2d: only_last_dim [bool] and only_first_dim [bool] can not be both True at the same time.")
         return None
@@ -66,7 +66,7 @@ def tensor_pad2d(tensor, pad=1, only_last_dim=False, only_first_dim=False):
     else: # symmetric padding
         new_shape[-1] += 2*pad[1]
         new_shape[-2] += 2*pad[0]
-    new_tensor = empty(new_shape).fill_(0.0).to(device)
+    new_tensor = empty(new_shape).fill_(0.0).to(DEVICE)
 
     # indices for the padding
     begin = [pad[0], pad[1]]
@@ -134,26 +134,27 @@ class Module(object):
 class ReLU(Module):
     """ ReLU layer. """
     def __init__(self):
-        pass
+        self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
 
     def forward(self, input):
         """ Forward pass of ReLU."""
-        output = input.maximum(empty(input.shape).fill_(0.0).to(device))
+        self.input = input
+        output = input.maximum(empty(input.shape).fill_(0.0).to(self.DEVICE))
         return output
 
     def backward(self, gradwrtoutput):
         """ Backward pass of ReLU."""
-        grad = gradwrtoutput * gradwrtoutput.greater(empty(gradwrtoutput.shape).fill_(0.0).to(device)).float()
+        grad = (self.input > 0).float() * gradwrtoutput
         return grad
 
 class Sigmoid(Module):
     """ Sigmoid layer. """
     def __init__(self):
-        pass
+        self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
 
     def forward(self, input):
         """ Forward pass of Sigmoid."""
-        output = 1.0 / (1.0 + (-input).exp())
+        output = input.sigmoid() # output = 1.0 / (1.0 + (-input).exp())
         self.output = output
         return output
 
@@ -179,6 +180,7 @@ class Conv2d(Module):
     :type stride: int > 0, optional
     """
     def __init__(self, in_channels, out_channels, kernel_size, dilation=1, padding=0, stride=1):
+        self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
         self.in_channels = int(in_channels)
         self.out_channels = int(out_channels)
         if type(kernel_size) is int: kernel_size = (kernel_size, kernel_size)
@@ -190,10 +192,10 @@ class Conv2d(Module):
 
         # Parameters initialization of torch.nn.Conv2d
         k = math.sqrt(1.0/(self.in_channels * reduce(lambda x, y: x * y, self.kernel_size)))
-        self.weight = empty((self.out_channels, self.in_channels) + self.kernel_size).uniform_(-k, k).to(device)
-        self.bias = empty((self.out_channels)).uniform_(-k, k).to(device)
-        self.grad_weight = empty(self.weight.shape).fill_(0.0).to(device)
-        self.grad_bias = empty(self.bias.shape).fill_(0.0).to(device)
+        self.weight = empty((self.out_channels, self.in_channels) + self.kernel_size).uniform_(-k, k).to(self.DEVICE)
+        self.bias = empty((self.out_channels)).uniform_(-k, k).to(self.DEVICE)
+        self.grad_weight = empty(self.weight.shape).fill_(0.0).to(self.DEVICE)
+        self.grad_bias = empty(self.bias.shape).fill_(0.0).to(self.DEVICE)
 
     def forward(self, input):
         """
@@ -207,7 +209,7 @@ class Conv2d(Module):
         self.input = input # will be used in the backward pass
 
         # convolution = unfolding + matrix multiplication + reshaping
-        output = unfold(input, kernel_size=self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride).to(device)
+        output = unfold(input, kernel_size=self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride).to(self.DEVICE)
         output = self.weight.view((self.out_channels, -1)) @ output + self.bias.view((1, -1, 1))
 
         # shapes (Height, Width) calculations from torch.nn.Conv2d
@@ -239,7 +241,7 @@ class Conv2d(Module):
         dL_dX = dL_dX.permute((0, 2, 1, 3))
         dL_dX = dL_dX.reshape(dL_dX.shape[0], dL_dX.shape[1], -1)
         output_shape = (self.input.shape[2], self.input.shape[3])
-        dL_dX = fold(dL_dX, output_size=output_shape, kernel_size=self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride).to(device)
+        dL_dX = fold(dL_dX, output_size=output_shape, kernel_size=self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride).to(self.DEVICE)
 
         # Gradients with respect to weights
         PAD_sol = self.dilation*(self.kernel_size[0]-1)-self.input.shape[-1]+self.stride*(gradwrtoutput.shape[-1]-1)+1
@@ -250,7 +252,7 @@ class Conv2d(Module):
             i = tensor_pad2d(i, pad=PAD_double)
         else:
             warnings.warn("Conv2d.backward: negative padding")
-        dL_dW = unfold(i, kernel_size=gradwrtoutput.shape[-2:], dilation=self.stride, padding=0, stride=self.dilation).to(device)
+        dL_dW = unfold(i, kernel_size=gradwrtoutput.shape[-2:], dilation=self.stride, padding=0, stride=self.dilation).to(self.DEVICE)
         dL_dW = dL_dW.reshape(dL_dW.shape[0], self.in_channels, -1, dL_dW.shape[2])
         dL_dW = gradwrtoutput.view(gradwrtoutput.shape[0], 1, gradwrtoutput.shape[1], -1) @ dL_dW
         dL_dW = dL_dW.reshape(dL_dW.shape[0], self.in_channels, self.out_channels, self.kernel_size[0], self.kernel_size[1]).permute((0, 2, 1, 3, 4))
@@ -268,12 +270,14 @@ class Conv2d(Module):
         weight_pair = [self.weight, self.grad_weight]
         bias_pair = [self.bias, self.grad_bias]
         parameters = [weight_pair, bias_pair]
+        # self.bias.fill_(0.0) # FIXME ASUP
+        # parameters = [weight_pair] # FIXME ASUP
         return parameters
 
     def load_param(self, parameters):
         """ Load the parameters given as input. """
-        self.weight = parameters[0][0]
-        self.bias = parameters[1][0]
+        self.weight = parameters[0][0].to(self.DEVICE)
+        self.bias = parameters[1][0].to(self.DEVICE)
 
     def test(self, Test):
         """ This function is only used for testing purpose """
@@ -299,6 +303,7 @@ class TransposeConv2d(Module):
     :type output_padding: int >= 0, optional
     """
     def __init__(self, in_channels, out_channels, kernel_size, dilation=1, padding=0, stride=1, output_padding=0):
+        self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
         self.in_channels = int(in_channels)
         self.out_channels = int(out_channels)
         if type(kernel_size) is int: kernel_size = (kernel_size, kernel_size)
@@ -312,10 +317,10 @@ class TransposeConv2d(Module):
 
         # Parameters initialization of torch.nn.ConvTranspose2d
         k = math.sqrt(1.0 / (self.in_channels * reduce(lambda x, y: x * y, self.kernel_size)))
-        self.weight = empty((self.in_channels, self.out_channels) + self.kernel_size).uniform_(-k, k).to(device)
-        self.bias = empty((self.out_channels)).uniform_(-k, k).to(device)
-        self.grad_weight = empty(self.weight.shape).fill_(0.0).to(device)
-        self.grad_bias = empty(self.bias.shape).fill_(0.0).to(device)
+        self.weight = empty((self.in_channels, self.out_channels) + self.kernel_size).uniform_(-k, k).to(self.DEVICE)
+        self.bias = empty((self.out_channels)).uniform_(-k, k).to(self.DEVICE)
+        self.grad_weight = empty(self.weight.shape).fill_(0.0).to(self.DEVICE)
+        self.grad_bias = empty(self.bias.shape).fill_(0.0).to(self.DEVICE)
 
     def forward(self, input):
         """
@@ -353,7 +358,7 @@ class TransposeConv2d(Module):
             output = tensor_pad2d(output, pad=(0, pad_to_add_2), only_last_dim=True)
 
         output = output.reshape(output.shape[0], output.shape[1], -1)
-        output = fold(output, output_size=(H_out, W_out), kernel_size=self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride).to(device)
+        output = fold(output, output_size=(H_out, W_out), kernel_size=self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride).to(self.DEVICE)
         output = output + self.bias.reshape(1, -1, 1, 1)
 
         return output
@@ -369,7 +374,7 @@ class TransposeConv2d(Module):
         if gradwrtoutput.dim() == 3: gradwrtoutput = gradwrtoutput.view(1, gradwrtoutput.shape[0], gradwrtoutput.shape[1], gradwrtoutput.shape[2]) # security reshaping
 
         # Gradients with respect to input
-        dL_dX = unfold(gradwrtoutput, kernel_size=self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride).to(device)
+        dL_dX = unfold(gradwrtoutput, kernel_size=self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride).to(self.DEVICE)
         dL_dX = self.weight.view((self.in_channels, -1)) @ dL_dX
         H_in = gradwrtoutput.shape[2]
         H_out = math.floor((H_in + 2.0 * self.padding - self.dilation * (self.kernel_size[0] - 1.0) - 1.0) / self.stride + 1.0)
@@ -379,7 +384,7 @@ class TransposeConv2d(Module):
         dL_dX = dL_dX[:, :, :self.input.shape[2], :self.input.shape[3]] # crops dL_dX to remove non-wanted additional padding added during forward
 
         # Gradients with respect to weights
-        dL_dW = unfold(gradwrtoutput, kernel_size=self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride).to(device)
+        dL_dW = unfold(gradwrtoutput, kernel_size=self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride).to(self.DEVICE)
         dL_dW = dL_dW.transpose(0, 1).reshape(self.out_channels * self.kernel_size[0] * self.kernel_size[0], -1).transpose(0, 1)
         dL_dW = self.input.transpose(0, 1).reshape(self.in_channels, -1) @ dL_dW
         dL_dW = dL_dW.view(self.in_channels, self.out_channels, self.kernel_size[0], self.kernel_size[1])
@@ -396,12 +401,14 @@ class TransposeConv2d(Module):
         weight_pair = [self.weight, self.grad_weight]
         bias_pair = [self.bias, self.grad_bias]
         parameters = [weight_pair, bias_pair]
+        # self.bias.fill_(0.0) # FIXME ASUP
+        # parameters = [weight_pair] # FIXME ASUP
         return parameters
 
     def load_param(self, parameters):
         """ Load the parameters given as input. """
-        self.weight = parameters[0][0]
-        self.bias = parameters[1][0]
+        self.weight = parameters[0][0].to(self.DEVICE)
+        self.bias = parameters[1][0].to(self.DEVICE)
 
     def test(self, Test):
         """ This function is only used for testing purpose """
@@ -415,6 +422,7 @@ class MSELoss():
     :type reduction: str ('mean' or 'sum'), optional
     """
     def __init__(self, reduction="mean"):
+        self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
         self.reduction = reduction
 
     def __call__(self, data1, data2):
@@ -461,11 +469,15 @@ class Sequential():
     :type forward_initiated: bool, optional
     """
     def __init__(self, *modules):
+        self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
         self.modules = [*modules]
         self.forward_initiated = False
 
     def __call__(self, input):
         return self.forward(input)
+
+    def __getitem__(self, index):
+        return self.modules[index]
 
     def forward(self, input):
         """ Forward pass of the model. """
@@ -500,29 +512,38 @@ class SGD():
     :type parameters: list [len=n_modules] of list [len=n_params/module] of list of 2 Tensors [2]
     :param lr: learning rate
     :type lr: float
+    :param weight_decay: lambda for regularization, defaults to 0.0
+    :type weight_decay: float > 0.0, optional
     """
-    def __init__(self, parameters, lr):
+    def __init__(self, parameters, lr=0.01, weight_decay=0.0):
+        self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
         self.parameters = parameters
         self.lr = lr
+        self.weight_decay = weight_decay
 
     def zero_grad(self):
         """ Set all grad Tensors to 0. """
         for i in range(len(self.parameters)):
-            self.parameters[i][1].fill_(1.0)
+            self.parameters[i][1].fill_(0.0)
 
     def step(self):
         """ Update step """
-        # self.lr = 0.9*self.lr
+        # self.lr = 0.993*self.lr
         for i in range(len(self.parameters)):
+            self.parameters[i][1].add_(self.weight_decay * self.parameters[i][0])
             grad = self.parameters[i][1]
-            self.parameters[i][0].add_(self.lr * grad)
+            self.parameters[i][0].add_(-self.lr * grad)
 
 class Model():
     """
     Model for miniproject 2.
     """
-    def __init__(self):
+    def __init__(self, model_param=None):
+        self.DEVICE = 'cuda' if cuda.is_available() else 'cpu'
         # instantiate model (Sequential) + optimizer (SGD) + loss function (MSELoss)
+        if model_param is None:
+            model_param = {"mini_batch": 256, "lr": 5.0, "weight_decay": 0.0}
+        self.model_param = model_param
         self.model = Sequential(Conv2d(in_channels=3, out_channels=12, kernel_size=3, dilation=1, padding=1, stride=2),
                                 ReLU(),
                                 Conv2d(in_channels=12, out_channels=48, kernel_size=3, dilation=1, padding=1, stride=2),
@@ -531,12 +552,8 @@ class Model():
                                 ReLU(),
                                 TransposeConv2d(in_channels=12, out_channels=3, kernel_size=3, dilation=1, padding=1, stride=2, output_padding=1),
                                 Sigmoid())
-        self.SGD_optimizer = SGD(self.model.param(), lr=0.1)
+        self.SGD_optimizer = SGD(self.model.param(), lr=self.model_param['lr'], weight_decay=self.model_param['weight_decay'])
         self.MSE = MSELoss()
-
-    def load_pretrained_model(self):
-        # This loads the parameters saved in bestmodel.pkl into the model
-        self.load_model("bestmodel.pkl") # TODO: add real location of the file
 
     def save_model(self, filename):
         """ Saves the current model to filename (pkl file). """
@@ -553,6 +570,16 @@ class Model():
         for id, mod in enumerate(self.model.modules):
             mod.load_param(parameters[id])
 
+    def load_pretrained_model(self):
+        # This loads the parameters saved in bestmodel.pkl into the model
+
+        # MAKE SURE THE TEST.PY CAN BE CALLED ANYWHERE
+        path = "bestmodel.pkl"
+        if not os.path.exists(path): path = "Deep-learning-project/Miniproject_2/" + path
+        if not os.path.exists(path): path = "Miniproject_2/" + path
+
+        self.load_model(path)
+
     def shuffle_data(self, train_input, train_target):
         """ Shuffles train_input and train_target in a random order (inplace operation) """
         N = train_input.shape[0]
@@ -562,7 +589,7 @@ class Model():
         train_target = train_target[order]
         return train_input, train_target
 
-    def data_generator(self, train_input, train_target, mini_batch_size=256, shuffle=True):
+    def data_generator(self, train_input, train_target, mini_batch_size=128, shuffle=True):
         """
         Generator of mini batches
         :param train_input: input tensor
@@ -590,9 +617,9 @@ class Model():
             start = batch * mini_batch_size
             end = min((batch + 1) * mini_batch_size, N)
             if start < end:
-                yield new_train_input[start:end], new_train_target[start:end]
+                yield new_train_input[start:end].to(self.DEVICE), new_train_target[start:end].to(self.DEVICE)
 
-    def train(self, train_input, train_target, num_epochs, debug=False):
+    def train(self, train_input, train_target, num_epochs, debug=True):
         """
         Trains the model
         :param train_input: input tensor (containing a noisy version of the images)
@@ -608,18 +635,35 @@ class Model():
             train_input = train_input / 255.0
             train_target = train_target / 255.0
 
+        self.image_tracked = train_input[0].clone()
+        path = "../data"
+        if not os.path.exists(path): path = "Deep-learning-project/data/"
+        if not os.path.exists(path): path = "data/"
+        test_noisy, test_cleaned = load(path + "val_data.pkl", map_location=self.DEVICE)
+
         t_beginning = time.time() # beginning time of the training
+        t_last_print = t_beginning
         n_steps = 0
         for epoch in range(num_epochs):
-            for input_minibatch, target_minibatch in self.data_generator(train_input, train_target, mini_batch_size=256, shuffle=True):
-                predictions = self.model(input_minibatch)
+            for input_minibatch, target_minibatch in self.data_generator(train_input, train_target, mini_batch_size=self.model_param['mini_batch'], shuffle=True):
+                predictions = self.model(input_minibatch).to(self.DEVICE)
                 loss = self.MSE.forward(predictions, target_minibatch)
-                n_steps += 1
-                if debug and n_steps%10==0: print(f"Loss = {loss} [{epoch},{n_steps}] {round(time.time()-t_beginning,2)} s")
+                if debug and time.time() - t_last_print > 1.0:
+                    t_last_print = time.time()
+                    print(f"Loss = {loss} [{epoch + 1}/{num_epochs},{n_steps * self.model_param['mini_batch']}/50000] {round(time.time()-t_beginning,2)} s")
+                    # print(self.model.param())
                 grad_loss = self.MSE.backward(loss)
                 self.SGD_optimizer.zero_grad()
                 self.model.backward(grad_loss)
                 self.SGD_optimizer.step()
+                n_steps += 1
+            n_steps = 0
+            test_denoised = self.predict(test_noisy)
+            PSNR = psnr(test_denoised, test_cleaned).mean()
+            print(f"PSNR = {PSNR}")
+            # image_tracked_pred = self.predict(self.image_tracked).reshape(self.image_tracked.shape).permute(1, 2, 0).to('cpu')
+            # plt.imshow(image_tracked_pred)
+            # plt.show()
 
     def predict(self, test_input):
         """
@@ -634,22 +678,31 @@ class Model():
             test_input = test_input / 255.0
 
         test_output = self.model(test_input) # Forward pass
+        print(test_input.shape, test_output.shape)
         test_output = test_output * 255.0 # Scales back the data to (0, 255)
-        return test_output
+        return test_output.int()
 
 
 if __name__ == '__main__':
-    train_input, train_target = torch.load("../data/train_data.pkl", map_location=device)
-    test_noisy, test_cleaned = torch.load("../data/val_data.pkl", map_location=device)
+    path = "../data"
+    if not os.path.exists(path): path = "Deep-learning-project/data/"
+    if not os.path.exists(path): path = "data/"
+
+    DEVICE = 'cuda' if cuda.is_available() else 'cpu'
+    train_input, train_target = load(path + "train_data.pkl", map_location=DEVICE)
+    test_noisy, test_cleaned = load(path + "data/val_data.pkl", map_location=DEVICE)
     print(train_input.shape, train_target.shape)
     print(test_noisy.shape, test_cleaned.shape)
     print(f"PSNR mean (before) = {psnr(test_noisy, test_cleaned).mean()}")
 
     # Model training and predictions
-    Run = Model()
-    Run.train(train_input, train_target, 1)
-    test_denoised = Run.predict(test_noisy).int()
-
+    model_param = {"mini_batch": 256, "lr": 5.0, "weight_decay": 0.0}
+    Run = Model(model_param)
+    Run.load_pretrained_model()
+    Run.load_pretrained_model()
+    Run.train(train_input, train_target, 5)
+    Run.save_model(filename="bestmodel.pkl")
+    test_denoised = Run.predict(test_noisy)
     print(f"PSNR mean (after) = {psnr(test_denoised, test_cleaned).mean()}")
 
     # Quick plotting to observe the result
