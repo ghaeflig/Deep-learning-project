@@ -639,8 +639,8 @@ class Model():
 
 
 if __name__ == '__main__':
-    train_input, train_target = torch.load("Deep-learning-project/data/train_data.pkl", map_location=device)
-    test_noisy, test_cleaned = torch.load("Deep-learning-project/data/val_data.pkl", map_location=device)
+    train_input, train_target = torch.load("../data/train_data.pkl", map_location=device)
+    test_noisy, test_cleaned = torch.load("../data/val_data.pkl", map_location=device)
     print(train_input.shape, train_target.shape)
     print(test_noisy.shape, test_cleaned.shape)
     print(f"PSNR mean (before) = {psnr(test_noisy, test_cleaned).mean()}")
