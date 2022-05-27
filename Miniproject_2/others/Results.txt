@@ -1,0 +1,11 @@
+Mean PSNR = 23.460426330566406 (after 10 epochs, 318.63 sec) | {'mini_batch_size': 64, 'lr': 5.0, 'channel_increase': 4, 'kernel': 3, 'padding': 1}
+Mean PSNR = 23.55593490600586 (after 10 epochs, 458.09 sec) | {'mini_batch_size': 32, 'lr': 5.0, 'channel_increase': 4, 'kernel': 3, 'padding': 1}
+Mean PSNR = 22.183446884155273 (after 10 epochs, 294.54 sec) | {'mini_batch_size': 128, 'lr': 5.0, 'channel_increase': 4, 'kernel': 3, 'padding': 1}
+Mean PSNR = 21.367767333984375 (after 10 epochs, 267.36 sec) | {'mini_batch_size': 256, 'lr': 5.0, 'channel_increase': 4, 'kernel': 3, 'padding': 1}
+Mean PSNR = 21.941387176513672 (after 10 epochs, 298.66 sec) | {'mini_batch_size': 64, 'lr': 25.0, 'channel_increase': 4, 'kernel': 3, 'padding': 1}
+Mean PSNR = 21.842369079589844 (after 10 epochs, 320.28 sec) | {'mini_batch_size': 64, 'lr': 1.0, 'channel_increase': 4, 'kernel': 3, 'padding': 1}
+Mean PSNR = 12.686264038085938 (after 10 epochs, 344.59 sec) | {'mini_batch_size': 64, 'lr': 0.01, 'channel_increase': 4, 'kernel': 3, 'padding': 1}
+Mean PSNR = 22.16595458984375 (after 10 epochs, 298.33 sec) | {'mini_batch_size': 64, 'lr': 5.0, 'channel_increase': 2, 'kernel': 3, 'padding': 1}
+Mean PSNR = 23.811153411865234 (after 10 epochs, 491.87 sec) | {'mini_batch_size': 64, 'lr': 5.0, 'channel_increase': 8, 'kernel': 3, 'padding': 1}
+Mean PSNR = 22.401296615600586 (after 10 epochs, 407.8 sec) | {'mini_batch_size': 64, 'lr': 5.0, 'channel_increase': 4, 'kernel': 5, 'padding': 2}
+
