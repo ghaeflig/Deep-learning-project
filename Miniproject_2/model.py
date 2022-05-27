@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 
 random.seed(0)
 import torch
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cpu'
 
 # from torch import set_grad_enabled
 # set_grad_enabled(False)
